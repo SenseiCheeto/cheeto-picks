@@ -1,0 +1,476 @@
+<title>Cheeto Picks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: scoreboard-style header, three tabs (This Week / Record / Run), tables inside scroll boxes, one column on phones. */
+:root {
+  --bg: #F6F4F1; --surface: #FFFFFF; --ink: #1D1814; --muted: #6A625B; --line: #E0DBD4;
+  --accent: #C2500E; --accent-ink: #FFFFFF;
+  --good-bg: #D5EBDD; --good-fg: #0E5132; --lean-bg: #F6E7B4; --lean-fg: #6B4A00;
+  --flat-bg: #ECE8E3; --flat-fg: #5E5750; --long-bg: #F5DAC3; --long-fg: #8A3F0B;
+  --bad-bg: #F6D3D1; --bad-fg: #8E1F1B;
+  --hero-bg: #1E1A17; --hero-fg: #F7F2EC; --hero-line: rgba(255,255,255,.09); --hero-dim: #C9BFB4; --hot: #FF8A3D;
+  --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121010; --surface: #1B1816; --ink: #EFEAE4; --muted: #A69D93; --line: #2E2925;
+    --accent: #FF8A3D; --accent-ink: #1B0E04;
+    --good-bg: #1F4A34; --good-fg: #A9E6C4; --lean-bg: #4B3C10; --lean-fg: #F1D88B;
+    --flat-bg: #2A2623; --flat-fg: #B0A79D; --long-bg: #4D2E15; --long-fg: #F2BE92;
+    --bad-bg: #502220; --bad-fg: #F4B5B1; --hero-bg: #171412; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121010; --surface: #1B1816; --ink: #EFEAE4; --muted: #A69D93; --line: #2E2925;
+  --accent: #FF8A3D; --accent-ink: #1B0E04;
+  --good-bg: #1F4A34; --good-fg: #A9E6C4; --lean-bg: #4B3C10; --lean-fg: #F1D88B;
+  --flat-bg: #2A2623; --flat-fg: #B0A79D; --long-bg: #4D2E15; --long-fg: #F2BE92;
+  --bad-bg: #502220; --bad-fg: #F4B5B1; --hero-bg: #171412; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45;
+  padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h1 { font-size: 34px; font-weight: 700; letter-spacing: .01em; text-transform: uppercase; }
+h2 { font-size: 22px; font-weight: 600; }
+h3 { font-size: 16px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.hero { background: var(--hero-bg); color: var(--hero-fg); border-radius: 10px; padding: 22px 22px 16px; display: flex; flex-direction: column; gap: 14px;
+  background-image: repeating-linear-gradient(90deg, transparent 0 79px, var(--hero-line) 79px 80px), linear-gradient(180deg, transparent 70%, rgba(0,0,0,.18)); }
+.hero .eyebrow { font: 600 12px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--hero-dim); }
+.hero h1 .hot { color: var(--hot); }
+.hero { border-bottom: 4px solid var(--hot); }
+.hero h1 { color: var(--hero-fg); font-size: 44px; line-height: 1; }
+.hero .lede { color: var(--hero-dim); max-width: 56ch; font-size: 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 13px var(--body); padding: 3px 10px; border: 1px solid var(--hero-line); border-radius: 999px; color: var(--hero-fg); background: rgba(255,255,255,.06); }
+nav { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+nav button { font: 600 15px var(--display); letter-spacing: .06em; text-transform: uppercase; padding: 9px 16px; border: 1px solid var(--hero-line);
+  background: transparent; color: var(--hero-fg); border-radius: 6px; cursor: pointer; }
+nav button[aria-selected="true"] { background: var(--hero-fg); color: var(--hero-bg); border-color: var(--hero-fg); }
+footer { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.pick { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pk-top, .pk-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pk-game { font-size: 14px; color: var(--muted); }
+.pk-pick { font: 700 28px/1.1 var(--display); letter-spacing: .01em; overflow-wrap: anywhere; }
+.meter { position: relative; height: 8px; background: var(--flat-bg); border-radius: 4px; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 4px; }
+.meter u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); text-decoration: none; }
+.gapbar { display: inline-block; width: 54px; height: 6px; background: var(--flat-bg); border-radius: 3px; vertical-align: middle; margin-left: 8px; position: relative; }
+.gapbar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 3px; }
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.step h3 { color: var(--accent); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.fact { border-top: 3px solid var(--accent); padding-top: 8px; }
+.fact b { font: 700 28px var(--display); display: block; font-variant-numeric: tabular-nums; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; }
+.stat b { display: block; font: 700 26px var(--display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; color: var(--muted); }
+.box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { font: 600 12px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); text-align: left;
+  padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; white-space: nowrap; }
+td.nw { white-space: nowrap; }
+td.game { min-width: 120px; }
+.pill { display: inline-block; font: 600 12px var(--display); letter-spacing: .05em; text-transform: uppercase; padding: 2px 9px; border-radius: 4px; white-space: nowrap; }
+.Strong, .W { background: var(--good-bg); color: var(--good-fg); }
+.Lean { background: var(--lean-bg); color: var(--lean-fg); }
+.NoEdge, .Noline, .P, .pending { background: var(--flat-bg); color: var(--flat-fg); }
+.LongShot { background: var(--long-bg); color: var(--long-fg); }
+.L { background: var(--bad-bg); color: var(--bad-fg); }
+.pos { color: var(--good-fg); font-weight: 600; } .neg { color: var(--bad-fg); font-weight: 600; }
+.pickline b { font-weight: 600; }
+.note { font-size: 13px; color: var(--muted); max-width: 70ch; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 8px; padding: 18px; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { font: 600 16px var(--display); letter-spacing: .04em; text-transform: uppercase; padding: 12px 18px; border-radius: 6px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+.btn.alt { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.btn[disabled] { opacity: .5; cursor: default; }
+input[type=text], input[type=password], input[type=file] { font: 15px var(--body); padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink); min-width: 0; flex: 1 1 260px; }
+pre.log { margin: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 12px; font: 12.5px/1.45 ui-monospace, Menlo, monospace;
+  max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.err { color: var(--bad-fg); }
+@media (max-width: 520px) { .hero { padding: 18px 16px 14px; } .hero h1 { font-size: 34px; } .pk-pick { font-size: 24px; } td, th { padding: 8px 9px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">College football · model-backed picks</div>
+    <h1>Cheeto <span class="hot">Picks</span></h1>
+    <p class="lede">Cheeto's weekly college football board. A model compares its game predictions with the betting line, and every number is adjusted for the model's past overconfidence, so most games honestly say "no edge".</p>
+    <div class="chips" id="chips"></div>
+    <nav role="tablist" id="tabs"></nav>
+  </header>
+  <main id="view"></main>
+  <footer>
+    <p class="small muted"><b>For information and entertainment only. This is not betting advice.</b> In backtests the model was about as accurate as the betting market, not better, and past results do not predict future ones. Bet only what you can afford to lose. Must be 21+ where required. If gambling is a problem, call or text 1-800-GAMBLER.</p>
+    <p class="small muted">Cheeto Picks · Data: CollegeFootballData.com. Kickoff times are Eastern.</p>
+  </footer>
+</div>
+<script id="embedded" type="application/json">null</script>
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const STRONG = 0.05, LEAN = 0.03, LONG_ODDS = 400, GAP_S = 10, GAP_T = 8, MIN_S = 2.0, MIN_T = 2.5;
+const BET = { spread: "Point spread", total: "Total points", moneyline: "Winner (moneyline)" };
+const GROUPS = ["Recommended bets (Strong + Lean)", "Tracked leans (No edge, not bets)", "Long shots (flagged, not recommended)"];
+
+let state = { local: false, hasKey: false, picks: [], pickFile: null, graded: [], tab: "week", status: null };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+/* ---------- formatting ---------- */
+const fmtLine = x => x == null ? "" : (x > 0 ? "+" : "") + (Math.round(x * 100) / 100);
+const fmtNum = x => x == null ? "" : String(Math.round(x * 100) / 100);
+const fmtOdds = o => o == null ? "" : (o > 0 ? "+" : "") + Math.round(o);
+const pct = (x, d = 1) => x == null || isNaN(x) ? "–" : (x * 100).toFixed(d) + "%";
+const spct = (x, d = 1) => x == null || isNaN(x) ? "–" : (x > 0 ? "+" : "") + (x * 100).toFixed(d) + "%";
+const units = x => (x > 0 ? "+" : "") + x.toFixed(2);
+const parseUTC = s => s ? new Date(String(s).replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? "" : "Z")) : null;
+const dtf = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dtfShort = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
+const kickS = s => { const d = parseUTC(s); return d && !isNaN(d) ? dtfShort.format(d).replace(",", "") : ""; };
+const kick = s => { const d = parseUTC(s); return d && !isNaN(d) ? dtf.format(d) + " ET" : ""; };
+function verdict(ev, longShot) {
+  if (ev == null || isNaN(ev)) return "No line";
+  if (longShot) return "Long shot";
+  return ev >= STRONG ? "Strong" : ev >= LEAN ? "Lean" : "No edge";
+}
+const pill = v => `<span class="pill ${v.replace(" ", "")}">${esc(v)}</span>`;
+const decOdds = o => o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o);
+
+/* ---------- this week's bets from a picks file ---------- */
+function betsOf(p) {
+  const out = [];
+  if (p.spread_pick != null && p.spread_ev != null)
+    out.push({ type: "spread", game: p, pick: p.spread_pick, p: p.spread_p, ev: p.spread_ev, v: verdict(p.spread_ev, false) });
+  if (p.total_pick != null && p.total_ev != null)
+    out.push({ type: "total", game: p, pick: p.total_pick, p: p.total_p, ev: p.total_ev, v: verdict(p.total_ev, false) });
+  if (p.ml_pick != null && p.ml_ev != null) {
+    const pr = p.ml_side === "home" ? p.home_win_p : 1 - p.home_win_p;
+    out.push({ type: "moneyline", game: p, pick: p.ml_pick + " " + fmtOdds(p.ml_odds), p: pr, ev: p.ml_ev, v: verdict(p.ml_ev, p.ml_odds >= LONG_ODDS) });
+  }
+  return out;
+}
+function gapsOf(p) {
+  const out = [];
+  if (p.spread != null && p.fair_spread != null) {
+    const g = Math.abs(p.fair_spread - p.spread);
+    if (g >= MIN_S) out.push({ type: "spread", game: p, gap: g, market: `${p.home} ${fmtLine(p.spread)}`, model: `${p.home} ${fmtLine(p.fair_spread)}`,
+      lean: p.spread_pick, p: p.spread_p, ev: p.spread_ev, v: verdict(p.spread_ev, false), big: g >= GAP_S });
+  }
+  if (p.total != null && p.pred_total != null) {
+    const g = Math.abs(p.pred_total - p.total);
+    if (g >= MIN_T) out.push({ type: "total", game: p, gap: g, market: fmtNum(p.total), model: fmtNum(p.pred_total),
+      lean: p.total_pick, p: p.total_p, ev: p.total_ev, v: verdict(p.total_ev, false), big: g >= GAP_T });
+  }
+  return out;
+}
+
+/* ---------- views ---------- */
+function viewWeek() {
+  const P = state.picks;
+  if (!P.length) return emptyPicks();
+  const games = [...P].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const bets = games.flatMap(betsOf);
+  const rec = bets.filter(b => b.v === "Strong" || b.v === "Lean").sort((a, b) => b.ev - a.ev);
+  const gaps = games.flatMap(gapsOf).sort((a, b) => b.gap - a.gap).slice(0, 14);
+  let h = `<section><div class="stats">
+    <div class="stat"><b>${games.length}</b><span>games this week</span></div>
+    <div class="stat"><b>${rec.length}</b><span>recommended bets (Strong + Lean)</span></div>
+    <div class="stat"><b>${gaps.length ? fmtNum(gaps[0].gap) : "–"}</b><span>biggest gap vs market, points</span></div></div></section>`;
+
+  h += `<section><h2>Recommended bets</h2><p class="note">Only Strong and Lean count. In backtests the model was about as accurate as the betting market, so treat these as a second opinion, not a sure thing.</p>`;
+  h += rec.length ? `<div class="cards">` + rec.map(b => {
+      const be = b.type === "moneyline" ? 1 / decOdds(b.game.ml_odds) : 1 / decOdds(-110);
+      return `<article class="pick"><div class="pk-top"><span class="small muted">${esc(kickS(b.game.date))} ET</span>${pill(b.v)}</div>
+        <div class="pk-game">${esc(b.game.away)} at ${esc(b.game.home)} · ${BET[b.type]}</div>
+        <div class="pk-pick">${esc(b.pick)}</div>
+        <div class="meter" role="img" aria-label="Adjusted chance ${pct(b.p)}; break-even ${pct(be)}"><i style="width:${Math.max(0, Math.min(100, b.p * 100))}%"></i><u style="left:${be * 100}%"></u></div>
+        <div class="pk-foot small"><span>Chance <b>${pct(b.p)}</b> <span class="muted">(needs ${pct(be)})</span></span><span>Return <b>${spct(b.ev)}</b> per $1</span></div></article>`; }).join("") + `</div>`
+    : `<div class="empty">No game clears the Lean bar this week. That is the model saying "no edge" everywhere, which is the most common result.</div>`;
+  h += `</section>`;
+
+  h += `<section><h2>Biggest disagreements</h2><p class="note">Where the model and the betting line differ most, biggest gap first. A big gap is a reason to look, not a reason to bet. Gaps of 10+ points on a spread (8+ on a total) usually mean the model is missing news such as an injury.</p>`;
+  h += gaps.length ? `<div class="box"><table><thead><tr><th>Kickoff (ET)</th><th>Game</th><th>Bet</th><th class="n">Market says</th><th class="n">Model says</th><th class="n">Gap</th><th>Model leans</th><th>Verdict</th></tr></thead><tbody>` +
+    gaps.map(g => `<tr><td class="nw">${esc(kickS(g.game.date))}</td><td>${esc(g.game.away)} at ${esc(g.game.home)}${g.big ? `<div class="small muted">Model may be missing news (injury?)</div>` : ""}</td>
+      <td>${BET[g.type]}</td><td class="n">${esc(g.market)}</td><td class="n">${esc(g.model)}</td><td class="n nw"><b>${fmtNum(g.gap)}</b><span class="gapbar"><i style="width:${Math.min(100, g.gap / 12 * 100)}%"></i></span></td>
+      <td class="nw"><b>${esc(g.lean)}</b></td><td>${pill(g.v)}</td></tr>`).join("") + `</tbody></table></div>`
+    : `<div class="empty">No game has a gap big enough to list.</div>`;
+  h += `</section>`;
+
+  h += `<section><h2>All games</h2><div class="box"><table><thead><tr><th>Kickoff (ET)</th><th>Game</th><th>Spread lean</th><th>Total lean</th><th>Winner lean</th></tr></thead><tbody>` +
+    games.map(p => {
+      const b = betsOf(p), by = t => b.find(x => x.type === t);
+      const cell = x => x ? `<b>${esc(x.pick)}</b> ${pill(x.v)}` : `<span class="muted">No line</span>`;
+      return `<tr><td class="nw">${esc(kickS(p.date))}</td><td>${esc(p.away)} at ${esc(p.home)}</td><td>${cell(by("spread"))}</td><td>${cell(by("total"))}</td><td>${cell(by("moneyline"))}</td></tr>`;
+    }).join("") + `</tbody></table></div></section>`;
+  return h;
+}
+
+function emptyPicks() {
+  return `<div class="empty">${state.local
+    ? `No picks yet. Open the <b>Run</b> tab and press <b>Get this week's picks</b>.`
+    : `No picks have been published yet. Check back once this week's games are posted.`}</div>` + loadPanel();
+}
+
+function groupOf(g) {
+  const long = g.market === "moneyline" && g.line_or_odds >= LONG_ODDS;
+  const v = g.ev >= STRONG ? "Strong" : g.ev >= LEAN ? "Lean" : "No edge";
+  return long ? GROUPS[2] : (v === "No edge" ? GROUPS[1] : GROUPS[0]);
+}
+function stats(rows) {
+  const w = rows.filter(r => r.result === "W").length, l = rows.filter(r => r.result === "L").length, p = rows.filter(r => r.result === "P").length;
+  const n = w + l + p, u = rows.reduce((s, r) => s + (r.units || 0), 0);
+  const be = n ? rows.reduce((s, r) => s + 1 / (r.market === "moneyline" ? decOdds(r.line_or_odds) : decOdds(-110)), 0) / n : NaN;
+  const mp = n ? rows.reduce((s, r) => s + (r.model_prob || 0), 0) / n : NaN;
+  return { n, rec: `${w}-${l}-${p}`, win: w + l ? w / (w + l) : NaN, be, mp, u, roi: n ? u / n : NaN };
+}
+function statTable(title, note, groups) {
+  const rows = groups.filter(g => g.rows.length);
+  if (!rows.length) return "";
+  return `<section><h3>${esc(title)}</h3>${note ? `<p class="note">${note}</p>` : ""}<div class="box"><table><thead><tr><th>Group</th><th class="n">Picks</th><th class="n">Record</th><th class="n">Win %</th><th class="n">Break-even %</th><th class="n">Model's chance</th><th class="n">Units</th><th class="n">ROI</th></tr></thead><tbody>` +
+    rows.map(g => { const s = stats(g.rows); const c = s.u > 0 ? "pos" : s.u < 0 ? "neg" : "";
+      return `<tr><td>${esc(g.name)}</td><td class="n">${s.n}</td><td class="n">${s.rec}</td><td class="n">${pct(s.win)}</td><td class="n">${pct(s.be)}</td><td class="n">${pct(s.mp)}</td><td class="n ${c}">${units(s.u)}</td><td class="n ${c}">${spct(s.roi)}</td></tr>`; }).join("") +
+    `</tbody></table></div></section>`;
+}
+function viewRecord() {
+  const G = state.graded;
+  let h = "";
+  if (!G.length) h += `<div class="empty">No graded picks yet. ${state.local ? `After games finish, open the <b>Run</b> tab and press <b>Grade past picks</b>.` : `Load <b>graded.csv</b> from your out folder below.`}</div>`;
+  else {
+    const done = G.filter(r => r.result !== "pending"), pend = G.length - done.length;
+    const withG = done.map(r => ({ ...r, group: groupOf(r) }));
+    h += `<section><h2>How the picks did</h2><p class="note">${done.length} graded picks${pend ? `, ${pend} waiting on games` : ""}. Each bet is a flat 1-unit stake. Only Strong and Lean picks are recommendations; tracked leans are the model's side in no-edge games, kept so we can check the labels. A few dozen picks is mostly luck.</p></section>`;
+    h += statTable("Headline", "", GROUPS.map(n => ({ name: n, rows: withG.filter(r => r.group === n) })));
+    const rec = withG.filter(r => r.group === GROUPS[0]), trk = withG.filter(r => r.group === GROUPS[1]);
+    h += chartUnits(rec);
+    h += statTable("Recommended bets by bet type", "Break-even % is the win rate needed to make money at the odds taken (52.4% at -110).",
+      Object.keys(BET).map(k => ({ name: BET[k], rows: rec.filter(r => r.market === k) })));
+    h += statTable("Tracked leans by bet type", "Not bets. If these win more than break-even, the model may be too cautious.",
+      Object.keys(BET).map(k => ({ name: BET[k], rows: trk.filter(r => r.market === k) })));
+    const ml = withG.filter(r => r.market === "moneyline");
+    h += statTable("Winner picks by price", "", [
+      { name: "Favorites (minus odds)", rows: ml.filter(r => r.line_or_odds < 0) },
+      { name: "Underdogs +100 to +249", rows: ml.filter(r => r.line_or_odds >= 100 && r.line_or_odds < 250) },
+      { name: "Underdogs +250 to +399", rows: ml.filter(r => r.line_or_odds >= 250 && r.line_or_odds < 400) },
+      { name: "Long shots +400 or more", rows: ml.filter(r => r.line_or_odds >= 400) }]);
+    const recent = [...G].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 60);
+    h += `<section><h3>Recent picks</h3><div class="box"><table><thead><tr><th>Kickoff</th><th>Bet</th><th>Pick</th><th>Final</th><th>Result</th><th class="n">Units</th></tr></thead><tbody>` +
+      recent.map(r => `<tr><td class="nw">${esc(kick(r.date))}</td><td>${BET[r.market] || esc(r.market)}</td><td><b>${esc(r.pick)}</b></td><td>${esc(r.final || "not played yet")}</td><td>${pill(r.result)}</td><td class="n">${r.units == null ? "" : units(r.units)}</td></tr>`).join("") +
+      `</tbody></table></div></section>`;
+  }
+  return h + loadPanel();
+}
+function chartUnits(rec) {
+  const rows = [...rec].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (rows.length < 2) return `<section><h3>Recommended bets, running total</h3><div class="empty">The chart appears once there are two or more graded recommended bets.</div></section>`;
+  let c = 0; const pts = rows.map((r, i) => (c += r.units || 0, { i: i + 1, y: c }));
+  const W = 640, H = 200, L = 44, R = 16, T = 14, B = 28;
+  const lo = Math.min(0, ...pts.map(p => p.y)), hi = Math.max(0, ...pts.map(p => p.y));
+  const span = (hi - lo) || 1, pad = span * 0.12, y0 = lo - pad, y1 = hi + pad;
+  const X = i => L + (i - 1) / (pts.length - 1) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const ticks = [...new Set([Math.round(lo), 0, Math.round(hi)])];
+  const path = pts.map((p, k) => (k ? "L" : "M") + X(p.i).toFixed(1) + " " + Y(p.y).toFixed(1)).join(" ");
+  const last = pts[pts.length - 1];
+  return `<section><h3>Recommended bets, running total</h3><div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running units won on recommended bets, ending at ${units(last.y)}">
+    ${ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}" style="stroke:var(--line)" stroke-width="${t === 0 ? 1.5 : 1}"/><text x="${L - 6}" y="${Y(t) + 4}" text-anchor="end" font-size="11" style="fill:var(--muted)">${t > 0 ? "+" : ""}${t}</text>`).join("")}
+    <path d="${path}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="${X(last.i)}" cy="${Y(last.y)}" r="4.5" style="fill:var(--accent)"/>
+    <text x="${X(last.i) - 10}" y="${Y(last.y) + (pts.length > 1 && last.y < pts[pts.length - 2].y ? 22 : -10)}" text-anchor="end" font-size="12" font-weight="600" style="fill:var(--ink)">${units(last.y)} units</text>
+    <text x="${L}" y="${H - 8}" font-size="11" style="fill:var(--muted)">bet 1</text><text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="11" style="fill:var(--muted)">bet ${pts.length}</text></svg></div></section>`;
+}
+function loadPanel() {
+  if (state.local || state.embedded) return "";
+  return `<section><h3>Load files</h3><div class="panel"><p class="note">This page can't see your computer on its own. Choose the files from your <b>out</b> folder. They stay in this browser and are not uploaded.</p>
+    <div class="row"><label for="f-picks" class="small muted">Weekly picks (picks_….csv)</label><input id="f-picks" type="file" accept=".csv"></div>
+    <div class="row"><label for="f-graded" class="small muted">Results (graded.csv)</label><input id="f-graded" type="file" accept=".csv"></div></div></section>`;
+}
+function viewHow() {
+  return `<section><h2>How it works</h2><div class="steps">
+    <div class="step"><h3>1. Predict</h3><p>For every game the model predicts the margin and the total points, using team efficiency, Elo, rest, recruiting talent, returning players and the betting line itself.</p></div>
+    <div class="step"><h3>2. Compare</h3><p>It turns those predictions into chances to cover, go over, or win, and compares them with what the odds imply.</p></div>
+    <div class="step"><h3>3. Adjust</h3><p>Backtests showed the model overrates its own edges, so its chances are pulled back toward the market before anything is labeled.</p></div>
+    <div class="step"><h3>4. Label</h3><p><b>Strong</b> = adjusted return 5%+, <b>Lean</b> = 3% to 5%, <b>No edge</b> = under 3%. <b>Long shot</b> flags +400 or longer underdogs, which are mostly noise.</p></div></div></section>
+  <section><h2>What the backtest found</h2><p class="note">About 4,500 games from 2020 to 2026, each predicted using only earlier data.</p>
+    <div class="facts">
+      <div class="fact"><b>12.23 vs 12.16</b><span class="small muted">average miss in points on the spread, model vs betting line. The line is slightly better.</span></div>
+      <div class="fact"><b>12.73 vs 12.63</b><span class="small muted">average miss in points on totals, model vs betting line.</span></div>
+      <div class="fact"><b>-0.4% / -6.6%</b><span class="small muted">simulated return betting every spread / total the raw model liked, before the adjustment above.</span></div></div></section>
+  <section><h2>How to read the picks</h2><p class="note"><b>Biggest disagreements</b> ranks games by how far the model is from the line, in points. A big gap is a reason to look, not a reason to bet. Gaps of 10+ points on a spread (8+ on a total) usually mean the model is missing news such as an injury. The model has no injury or weather data. <b>Break-even</b> is the win rate needed to make money at the odds: 52.4% at -110. <b>Tracked leans</b> are the model's side in no-edge games, graded only to check the labels.</p></section>`;
+}
+
+function viewSite() {
+  const st = (state.status && state.status.site) || {};
+  if (st.configured) return `<div class="panel"><h3>3. Public site</h3>
+    <p>Your site: <a href="${esc(st.url)}" target="_blank" rel="noopener">${esc(st.url)}</a></p>
+    <p class="note">It updates by itself after every automatic run. Press the button to update it right now.</p>
+    <div class="row"><button class="btn" id="site-publish">Publish now</button></div><p class="small muted" id="sitemsg"></p></div>`;
+  return `<div class="panel"><h3>3. Public site (optional)</h3>
+    <p class="note">Puts Cheeto Picks on a free public web page that updates itself after every automatic run. Anyone with the link can see this week's picks and your record. Your data key is never uploaded.</p>
+    <ol class="note" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+      <li>Make a free account at <a href="https://github.com/signup" target="_blank" rel="noopener">github.com</a> if you don't have one.</li>
+      <li>Open <a href="https://github.com/settings/tokens/new?scopes=public_repo&description=Cheeto%20Picks" target="_blank" rel="noopener">this link</a>, scroll down, press <b>Generate token</b>, and copy the token it shows.</li>
+      <li>Fill in the boxes below and press <b>Create my site</b>.</li></ol>
+    <div class="row"><label for="gh-user" class="small muted">GitHub username</label><input id="gh-user" type="text" autocomplete="off"></div>
+    <div class="row"><label for="gh-repo" class="small muted">Site name</label><input id="gh-repo" type="text" value="cheeto-picks" autocomplete="off"></div>
+    <div class="row"><label for="gh-token" class="small muted">Token</label><input id="gh-token" type="password" autocomplete="off" placeholder="Paste the token from GitHub"></div>
+    <div class="row"><button class="btn" id="site-setup">Create my site</button></div><p class="small muted" id="sitemsg"></p></div>`;
+}
+function viewRun() {
+  const s = state.status || {}; const running = s.running;
+  const log = (s.log || []).join("\n");
+  return `<section><h2>Run</h2>
+    <div class="panel"><h3>1. Your data key</h3>
+      ${state.hasKey ? `<p>Key saved on this computer. <button class="btn alt" id="rekey" style="padding:6px 12px;font-size:14px">Replace key</button></p>` : ""}
+      <div class="row" id="keyrow" ${state.hasKey ? "hidden" : ""}><label for="key" class="small muted">CollegeFootballData key</label><input id="key" type="password" autocomplete="off" placeholder="Paste the key from the email"><button class="btn" id="savekey">Save key</button></div>
+      <p class="note" id="keymsg"></p></div>
+    <div class="panel"><h3>2. Weekly routine</h3>
+      <p class="note">Before the games: get this week's picks. After the games: grade them. Grade first on Tuesday to close out last week.</p>
+      <div class="row"><button class="btn" data-run="predict" ${running ? "disabled" : ""}>Get this week's picks</button>
+      <button class="btn" data-run="grade" ${running ? "disabled" : ""}>Grade past picks</button>
+      <button class="btn alt" data-run="backtest" ${running ? "disabled" : ""}>Run the backtest</button>
+      <button class="btn alt" id="openout">Open spreadsheets folder</button></div>
+      <p class="small ${s.code ? "err" : "muted"}" id="runmsg">${running ? "Running: " + esc((s.labels || {})[s.name] || s.name) + ". Predict takes a few minutes." : s.name ? (s.code === 0 ? "Finished." : "Stopped with an error. Read the log below.") : "Nothing running."}</p>
+      <pre class="log" id="log">${esc(log) || "The log appears here."}</pre></div>
+    ${viewSite()}</section>`;
+}
+
+/* ---------- shell ---------- */
+function render() {
+  const tabs = [["week", "This week"], ["record", "Record"], ["how", "How it works"]].concat(state.local ? [["run", "Run"]] : []);
+  $("#tabs").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${n}</button>`).join("");
+  const m = /picks_(\d{4})(\d\d)(\d\d)/.exec(state.pickFile || "");
+  const when = m ? new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+  const n = state.graded.filter(r => r.result !== "pending").length;
+  $("#chips").innerHTML = [when && "Picks from " + when, state.picks.length && state.picks.length + " games", n && n + " graded picks", state.local && "Running on your Mac", !state.local && state.updated && "Updated " + new Date(state.updated).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" }) + " ET", state.local && state.status && state.status.auto && ((state.status.auto.mode === "record" ? "Record " : "Picks ") + (state.status.auto.ok ? "auto-updated " : "auto-update failed ")) + new Date(state.status.auto.time).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" })]
+    .filter(Boolean).map(t => `<span class="chip">${esc(t)}</span>`).join("");
+  const body = state.tab === "run" ? viewRun() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
+  $("#view").innerHTML = `<div style="display:flex;flex-direction:column;gap:22px">${body}</div>`;
+  const lg = $("#log"); if (lg) lg.scrollTop = lg.scrollHeight;
+}
+function setTab(t) { state.tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) {} render(); }
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-tab]"); if (t) return setTab(t.dataset.tab);
+  const r = e.target.closest("[data-run]");
+  if (r) {
+    if (!state.hasKey) { $("#keymsg").textContent = "Save your key first (step 1)."; return; }
+    const res = await api("/api/run", { cmd: r.dataset.run });
+    if (!res.ok) { $("#runmsg").textContent = res.message; $("#runmsg").className = "small err"; return; }
+    poll(); return;
+  }
+  if (e.target.id === "savekey") {
+    const res = await api("/api/key", { key: $("#key").value });
+    if (res.ok) { state.hasKey = true; render(); $("#keymsg").textContent = "Saved."; } else $("#keymsg").textContent = res.message;
+  }
+  if (e.target.id === "rekey") { $("#keyrow").hidden = false; }
+  if (e.target.id === "openout") api("/api/open", {});
+  if (e.target.id === "site-setup" || e.target.id === "site-publish") {
+    const msg = $("#sitemsg"), btn = e.target; msg.className = "small muted"; msg.textContent = "Working… this takes a few seconds."; btn.disabled = true;
+    const res = e.target.id === "site-setup"
+      ? await api("/api/site/setup", { user: $("#gh-user").value, repo: $("#gh-repo").value, token: $("#gh-token").value })
+      : await api("/api/site/publish", {});
+    btn.disabled = false; if (!res.message) { res.ok = false; res.message = "The app did not answer this request. It is probably still running the old version: close the Terminal window running Cheeto Picks, open it again, and try once more."; }
+    msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
+    if (res.ok) { try { state.status = await (await fetch("/api/status")).json(); } catch (x) {} const t = $("#sitemsg"); const m = res.message; render(); const t2 = $("#sitemsg"); if (t2) t2.textContent = m; }
+  }
+});
+document.addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  if (e.target.id !== "f-picks" && e.target.id !== "f-graded") return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    const rows = parseCSV(String(rd.result));
+    if (e.target.id === "f-picks") { state.picks = rows; state.pickFile = f.name; store.set("cfb.picks", JSON.stringify({ name: f.name, rows })); }
+    else { state.graded = rows; store.set("cfb.graded", JSON.stringify(rows)); }
+    render();
+  };
+  rd.readAsText(f);
+});
+
+async function api(path, body) {
+  try {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-CFB": "1" }, body: JSON.stringify(body) });
+    return await r.json();
+  } catch (e) { return { ok: false, message: "Could not reach the app. Is the Terminal window still open?" }; }
+}
+let timer = null;
+async function poll() {
+  clearTimeout(timer);
+  try {
+    const s = await (await fetch("/api/status")).json();
+    const was = state.status && state.status.running;
+    state.status = s; state.hasKey = s.has_key;
+    if (was && !s.running) await loadLocal();
+    if (state.tab === "run") render();
+    if (s.running) timer = setTimeout(poll, 1000);
+  } catch (e) {}
+}
+async function loadLocal() {
+  const d = await (await fetch("/api/data")).json();
+  state.picks = d.picks; state.pickFile = d.picks_file; state.graded = d.graded;
+}
+function parseCSV(txt) {
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < txt.length; i++) {
+    const c = txt[i];
+    if (q) { if (c === '"') { if (txt[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && txt[i + 1] === "\n") i++; row.push(cell); cell = ""; if (row.length > 1 || row[0] !== "") rows.push(row); row = []; }
+    else cell += c;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  const head = rows.shift() || [];
+  return rows.map(r => Object.fromEntries(head.map((h, i) => { const v = r[i]; return [h, v === undefined || v === "" ? null : (isNaN(Number(v)) || /^\d{4}-\d\d-\d\d/.test(v) ? v : Number(v))]; })));
+}
+
+(async function init() {
+  const h = location.hash.replace("#", "");
+  if (["week", "record", "how", "run"].includes(h)) state.tab = h;
+  try {
+    const r = await fetch("/api/status");
+    if (r.ok) { const s = await r.json(); if (s && s.local) { state.local = true; state.status = s; state.hasKey = s.has_key; await loadLocal(); } }
+  } catch (e) {}
+  if (!state.local) {
+    if (state.tab === "run") state.tab = "week";
+    let emb = null; try { emb = JSON.parse($("#embedded").textContent); } catch (e) {}
+    if (emb && emb.picks) { state.embedded = true; state.picks = emb.picks; state.pickFile = emb.picks_file; state.graded = emb.graded || []; }
+    else {
+      try {   // on the public site, the latest picks sit next to this page in data.json
+        const r = await fetch("data.json?t=" + Date.now(), { cache: "no-store" });
+        if (r.ok) { const j = await r.json(); if (j && (j.picks || j.graded)) { state.embedded = true; state.picks = j.picks || []; state.pickFile = j.picks_file; state.graded = j.graded || []; state.updated = j.updated; } }
+      } catch (e) {}
+      if (!state.embedded) {
+        try { const p = JSON.parse(store.get("cfb.picks") || "null"); if (p) { state.picks = p.rows; state.pickFile = p.name; } } catch (e) {}
+        try { const g = JSON.parse(store.get("cfb.graded") || "null"); if (g) state.graded = g; } catch (e) {}
+      }
+    }
+  } else if (state.status.running) poll();
+  render();
+})();
+</script>
