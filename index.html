@@ -291,8 +291,10 @@ function passes(game, type) {
 function updatedText() { return state.updated ? new Date(state.updated).toLocaleString("en-US", { timeZone: ET, weekday: "short", hour: "numeric", minute: "2-digit" }) + " ET" : null; }
 function chipsHtml() {
   const n = state.graded.filter(r => r.result !== "pending").length, a = state.status && state.status.auto;
-  const list = [!state.local && updatedText() && "Updated " + updatedText(), state.local && "Running on your Mac",
-    a && state.local && (a.mode === "record" ? "Record " : "Picks ") + (a.ok ? "auto-updated " : "auto-update failed ") + new Date(a.time).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }),
+  const list = [!state.local && updatedText() && "Updated " + updatedText(),
+    state.local && state.cloud && updatedText() && "Cloud run updated " + updatedText(),
+    state.local && !state.cloud && "Running on your Mac",
+    a && state.local && !state.cloud && (a.mode === "record" ? "Record " : "Picks ") + (a.ok ? "auto-updated " : "auto-update failed ") + new Date(a.time).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }),
     n && n + " graded picks"].filter(Boolean);
   return list.length ? `<div class="chips">${list.map(t => `<span class="chip">${esc(t)}</span>`).join("")}</div>` : "";
 }
@@ -489,7 +491,8 @@ function viewCloud() {
   if (st.configured) return `<div class="panel"><h3>4. Run in the cloud</h3>
     <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 6 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks) and Sunday 10 AM (record), Eastern time. Your Mac can be off. Your Mac schedule is now just a backup.</p>
     <p class="small"><a href="${esc(st.actions)}" target="_blank" rel="noopener">See cloud runs</a> · <a href="${esc(st.files)}" target="_blank" rel="noopener">Your private repository</a></p>
-    <div class="row"><button class="btn" id="cloud-run">Run in the cloud now</button></div><p class="small muted" id="cloudmsg"></p></div>`;
+    <div class="row"><button class="btn" id="cloud-run">Run in the cloud now</button> <button class="btn" id="cloud-update">Update cloud copy</button></div>
+    <p class="small muted">After you change anything in this folder (like installing an update), press <b>Update cloud copy</b> so the cloud uses it too.</p><p class="small muted" id="cloudmsg"></p></div>`;
   return `<div class="panel"><h3>4. Run in the cloud (optional)</h3>
     <p class="note">Lets GitHub run the weekly routine on its own computers, so it works even when your Mac is off. It makes a private repository with a copy of the model, and stores your data key there encrypted.</p>
     <ol class="note" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
@@ -562,9 +565,10 @@ document.addEventListener("click", async e => {
   }
 });
 document.addEventListener("click", async e => {
-  if (e.target.id !== "cloud-setup" && e.target.id !== "cloud-run") return;
+  if (!["cloud-setup", "cloud-run", "cloud-update"].includes(e.target.id)) return;
   const msg = $("#cloudmsg"), btn = e.target; msg.className = "small muted"; msg.textContent = "Working… this takes about a minute."; btn.disabled = true;
-  const res = e.target.id === "cloud-setup" ? await api("/api/cloud/setup", { token: $("#cl-token").value }) : await api("/api/cloud/run", {});
+  const res = e.target.id === "cloud-setup" ? await api("/api/cloud/setup", { token: $("#cl-token").value })
+    : e.target.id === "cloud-update" ? await api("/api/cloud/update", {}) : await api("/api/cloud/run", {});
   btn.disabled = false; if (!res.message) { res.ok = false; res.message = "The app did not answer. Close the Terminal window running Cheeto Picks, open it again, and retry."; }
   msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
   if (res.ok && e.target.id === "cloud-setup") { try { state.status = await (await fetch("/api/status")).json(); } catch (x) {} const m = res.message; render(); const t2 = $("#cloudmsg"); if (t2) t2.textContent = m; }
@@ -604,6 +608,7 @@ async function poll() {
 async function loadLocal() {
   const d = await (await fetch("/api/data")).json();
   state.picks = d.picks; state.pickFile = d.picks_file; state.graded = d.graded;
+  state.cloud = d.source === "cloud"; if (state.cloud) state.updated = d.updated;
 }
 function parseCSV(txt) {
   const rows = []; let row = [], cell = "", q = false;
