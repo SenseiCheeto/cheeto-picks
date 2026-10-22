@@ -483,6 +483,21 @@ function viewSite() {
     <div class="row"><label for="gh-token" class="small muted">Token</label><input id="gh-token" type="password" autocomplete="off" placeholder="Paste the token from GitHub"></div>
     <div class="row"><button class="btn" id="site-setup">Create my site</button></div><p class="small muted" id="sitemsg"></p></div>`;
 }
+function viewCloud() {
+  const st = (state.status && state.status.cloud) || {}, site = (state.status && state.status.site) || {};
+  if (!site.configured) return "";
+  if (st.configured) return `<div class="panel"><h3>4. Run in the cloud</h3>
+    <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 6 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks) and Sunday 10 AM (record), Eastern time. Your Mac can be off. Your Mac schedule is now just a backup.</p>
+    <p class="small"><a href="${esc(st.actions)}" target="_blank" rel="noopener">See cloud runs</a> · <a href="${esc(st.files)}" target="_blank" rel="noopener">Your private repository</a></p>
+    <div class="row"><button class="btn" id="cloud-run">Run in the cloud now</button></div><p class="small muted" id="cloudmsg"></p></div>`;
+  return `<div class="panel"><h3>4. Run in the cloud (optional)</h3>
+    <p class="note">Lets GitHub run the weekly routine on its own computers, so it works even when your Mac is off. It makes a private repository with a copy of the model, and stores your data key there encrypted.</p>
+    <ol class="note" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+      <li>Open <a href="${esc(st.link)}" target="_blank" rel="noopener">this link</a>, scroll down, press <b>Generate token</b>, and copy the new token.</li>
+      <li>Paste it below and press <b>Turn on cloud run</b>.</li></ol>
+    <div class="row"><label for="cl-token" class="small muted">New token</label><input id="cl-token" type="password" autocomplete="off" placeholder="Paste the new token"></div>
+    <div class="row"><button class="btn" id="cloud-setup">Turn on cloud run</button></div><p class="small muted" id="cloudmsg"></p></div>`;
+}
 function viewRun() {
   const s = state.status || {}; const running = s.running;
   const log = (s.log || []).join("\n");
@@ -499,7 +514,7 @@ function viewRun() {
       <button class="btn alt" id="openout">Open spreadsheets folder</button></div>
       <p class="small ${s.code ? "err" : "muted"}" id="runmsg">${running ? "Running: " + esc((s.labels || {})[s.name] || s.name) + ". Getting picks takes a few minutes." : s.name ? (s.code === 0 ? "Finished." : "Stopped with an error. Read the log below.") : "Nothing running."}</p>
       <pre class="log" id="log">${esc(log) || "The log appears here."}</pre></div>
-    ${viewSite()}</section>`;
+    ${viewSite()}${viewCloud()}</section>`;
 }
 
 /* ---------- shell ---------- */
@@ -545,6 +560,14 @@ document.addEventListener("click", async e => {
     msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
     if (res.ok) { try { state.status = await (await fetch("/api/status")).json(); } catch (x) {} const m = res.message; render(); const t2 = $("#sitemsg"); if (t2) t2.textContent = m; }
   }
+});
+document.addEventListener("click", async e => {
+  if (e.target.id !== "cloud-setup" && e.target.id !== "cloud-run") return;
+  const msg = $("#cloudmsg"), btn = e.target; msg.className = "small muted"; msg.textContent = "Working… this takes about a minute."; btn.disabled = true;
+  const res = e.target.id === "cloud-setup" ? await api("/api/cloud/setup", { token: $("#cl-token").value }) : await api("/api/cloud/run", {});
+  btn.disabled = false; if (!res.message) { res.ok = false; res.message = "The app did not answer. Close the Terminal window running Cheeto Picks, open it again, and retry."; }
+  msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
+  if (res.ok && e.target.id === "cloud-setup") { try { state.status = await (await fetch("/api/status")).json(); } catch (x) {} const m = res.message; render(); const t2 = $("#cloudmsg"); if (t2) t2.textContent = m; }
 });
 document.addEventListener("input", e => { if (e.target.id === "q") { state.f.q = e.target.value; renderResults(); } });
 document.addEventListener("change", e => {
