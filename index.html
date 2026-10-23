@@ -501,6 +501,18 @@ function viewCloud() {
     <div class="row"><label for="cl-token" class="small muted">New token</label><input id="cl-token" type="password" autocomplete="off" placeholder="Paste the new token"></div>
     <div class="row"><button class="btn" id="cloud-setup">Turn on cloud run</button></div><p class="small muted" id="cloudmsg"></p></div>`;
 }
+function viewDiscord() {
+  const st = (state.status && state.status.cloud) || {};
+  if (!st.configured) return "";
+  return `<div class="panel"><h3>5. Discord (optional)</h3>
+    <p class="note">Posts new recommended bets to a channel in your Discord after each cloud run, and your results after the Sunday record run.</p>
+    <ol class="note" style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px">
+      <li>In Discord, open your channel's settings (gear icon), then <b>Integrations</b>, then <b>Webhooks</b>, then <b>New Webhook</b>.</li>
+      <li>Press <b>Copy Webhook URL</b>. Treat it like a password: anyone with it can post in your channel.</li>
+      <li>Paste it below and press <b>Connect Discord</b>.</li></ol>
+    <div class="row"><label for="dc-url" class="small muted">Webhook URL</label><input id="dc-url" type="password" autocomplete="off" placeholder="https://discord.com/api/webhooks/…"></div>
+    <div class="row"><button class="btn" id="discord-setup">Connect Discord</button></div><p class="small muted" id="dcmsg"></p></div>`;
+}
 function viewRun() {
   const s = state.status || {}; const running = s.running;
   const log = (s.log || []).join("\n");
@@ -517,7 +529,7 @@ function viewRun() {
       <button class="btn alt" id="openout">Open spreadsheets folder</button></div>
       <p class="small ${s.code ? "err" : "muted"}" id="runmsg">${running ? "Running: " + esc((s.labels || {})[s.name] || s.name) + ". Getting picks takes a few minutes." : s.name ? (s.code === 0 ? "Finished." : "Stopped with an error. Read the log below.") : "Nothing running."}</p>
       <pre class="log" id="log">${esc(log) || "The log appears here."}</pre></div>
-    ${viewSite()}${viewCloud()}</section>`;
+    ${viewSite()}${viewCloud()}${viewDiscord()}</section>`;
 }
 
 /* ---------- shell ---------- */
@@ -572,6 +584,14 @@ document.addEventListener("click", async e => {
   btn.disabled = false; if (!res.message) { res.ok = false; res.message = "The app did not answer. Close the Terminal window running Cheeto Picks, open it again, and retry."; }
   msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
   if (res.ok && e.target.id === "cloud-setup") { try { state.status = await (await fetch("/api/status")).json(); } catch (x) {} const m = res.message; render(); const t2 = $("#cloudmsg"); if (t2) t2.textContent = m; }
+});
+document.addEventListener("click", async e => {
+  if (e.target.id !== "discord-setup") return;
+  const msg = $("#dcmsg"), btn = e.target; msg.className = "small muted"; msg.textContent = "Working… this takes about a minute."; btn.disabled = true;
+  const res = await api("/api/discord/setup", { url: $("#dc-url").value });
+  btn.disabled = false; if (!res.message) { res.ok = false; res.message = "The app did not answer. Close the Terminal window running Cheeto Picks, open it again, and retry."; }
+  msg.textContent = res.message; msg.className = "small " + (res.ok ? "" : "err");
+  if (res.ok) $("#dc-url").value = "";
 });
 document.addEventListener("input", e => { if (e.target.id === "q") { state.f.q = e.target.value; renderResults(); } });
 document.addEventListener("change", e => {
