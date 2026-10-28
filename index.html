@@ -329,6 +329,10 @@ function stakeHtml(p, dec) {
   const q = Math.min(0.02, Math.max(0, (p * b - (1 - p)) / b) / 4);
   return q > 0 ? `<div class="small muted" style="margin-top:6px">Suggested stake: about <b>${(q * 100).toFixed(1)}%</b> of your bankroll (a quarter of the Kelly size, capped at 2%).</div>` : "";
 }
+function shopHtml(b) {
+  const t = (b.type === "spread" ? b.game.spread_shop : b.type === "total" ? b.game.total_shop : b.game.ml_shop) || "";
+  return t ? `<div class="small muted" style="margin-top:6px">Line shopping: ${esc(t)}</div>` : "";
+}
 function resultsHtml() {
   const f = state.f;
   const games = [...state.picks].sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -342,7 +346,8 @@ function resultsHtml() {
       <div class="big">${esc(b.pick)}</div>
       <div class="meter" role="img" aria-label="Adjusted chance ${pct(b.p)}; break-even ${pct(be)}"><i style="width:${Math.max(0, Math.min(100, b.p * 100))}%"></i><u style="left:${be * 100}%"></u></div>
       <div class="foot small"><span>Chance <b>${pct(b.p)}</b> <span class="muted">(needs ${pct(be)})</span></span><span>Return <b>${spct(b.ev)}</b> per $1</span></div>
-      ${stakeHtml(b.p, b.type === "moneyline" ? decOdds(b.game.ml_odds) : decOdds(-110))}</article>`; }).join("") + `</div>`
+      ${stakeHtml(b.p, b.type === "moneyline" ? decOdds(b.game.ml_odds) : decOdds(-110))}
+      ${shopHtml(b)}</article>`; }).join("") + `</div>`
     : `<div class="empty">${f.type !== "all" || f.q ? "Nothing matches those filters." : "No game clears the Lean bar this week. That is the model saying \"no edge\" everywhere, which is the most common result."}</div>`;
   h += `</section>`;
 
@@ -496,7 +501,7 @@ function viewCloud() {
   const st = (state.status && state.status.cloud) || {}, site = (state.status && state.status.site) || {};
   if (!site.configured) return "";
   if (st.configured) return `<div class="panel"><h3>4. Run in the cloud</h3>
-    <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 6 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks) and Sunday 10 AM (record), Eastern time. Your Mac can be off. Your Mac schedule is now just a backup.</p>
+    <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 5 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks) and Sunday 10 AM (record), Eastern time. Your Mac can be off. Your Mac schedule is now just a backup.</p>
     <p class="small"><a href="${esc(st.actions)}" target="_blank" rel="noopener">See cloud runs</a> · <a href="${esc(st.files)}" target="_blank" rel="noopener">Your private repository</a></p>
     <div class="row"><button class="btn" id="cloud-run">Run in the cloud now</button> <button class="btn" id="cloud-update">Update cloud copy</button></div>
     <p class="small muted">After you change anything in this folder (like installing an update), press <b>Update cloud copy</b> so the cloud uses it too.</p><p class="small muted" id="cloudmsg"></p></div>`;
