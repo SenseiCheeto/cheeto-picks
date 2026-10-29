@@ -209,7 +209,7 @@ const BET = { spread: "Point spread", total: "Total points", moneyline: "Winner 
 const BETSHORT = { spread: "Spread", total: "Total", moneyline: "Winner" };
 const GROUPS = ["Recommended bets (Strong + Lean)", "Tracked leans (No edge, not bets)", "Long shots (flagged, not recommended)"];
 
-let state = { local: false, hasKey: false, picks: [], pickFile: null, graded: [], tab: "week", status: null, f: { type: "all", rec: false, q: "" } };
+let state = { local: false, hasKey: false, picks: [], pickFile: null, graded: [], edges: [], clv: [], tab: "week", status: null, f: { type: "all", rec: false, q: "" } };
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -248,7 +248,7 @@ const isRec = v => v === "Strong" || v === "Lean";
 function icon(n) {
   const p = { week: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     record: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', how: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
-    run: '<path d="M7 4l13 8-13 8z"/>' }[n];
+    run: '<path d="M7 4l13 8-13 8z"/>', edges: '<path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3"/>' }[n];
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
 
@@ -331,7 +331,40 @@ function stakeHtml(p, dec) {
 }
 function shopHtml(b) {
   const t = (b.type === "spread" ? b.game.spread_shop : b.type === "total" ? b.game.total_shop : b.game.ml_shop) || "";
-  return t ? `<div class="small muted" style="margin-top:6px">Line shopping: ${esc(t)}</div>` : "";
+  const mk = b.type === "moneyline" ? "ml" : b.type, side = b.type === "spread" ? b.game.spread_side : b.type === "total" ? b.game.total_side : b.game.ml_side;
+  const pe = (state.edges || []).filter(e => String(e.game_id) === String(b.game.game_id) && e.market === mk && e.side === side).sort((x, y) => y.edge - x.edge)[0];
+  return (t ? `<div class="small muted" style="margin-top:6px">Line shopping: ${esc(t)}</div>` : "") +
+    (pe ? `<div class="small" style="margin-top:6px"><b class="pos">Price edge confirms:</b> ${esc(pe.venue)} ${pe.price > 0 ? "+" : ""}${pe.price} is ${spct(pe.edge)} better than Pinnacle's fair price.</div>` : "");
+}
+const PRICE_NOTE = "A price edge compares an exchange price with Pinnacle's no-vig number on the exact same line, after an assumed 1% fee. No model is involved.";
+function viewEdges() {
+  const now = Date.now();
+  const rows = (state.edges || []).filter(e => { const d = okd(e.date); return d && d.getTime() > now; });
+  const groups = {};
+  rows.forEach(e => { const k = [e.game_id, e.market, e.side].join("|"); (groups[k] = groups[k] || []).push(e); });
+  const list = Object.values(groups).map(g => g.sort((a, b) => b.edge - a.edge)).sort((a, b) => b[0].edge - a[0].edge);
+  const strong = list.filter(g => g[0].tier === "Strong").length, agree = list.filter(g => g[0].model === "agrees").length;
+  let h = hero("Prices that beat the sharpest book", "Price edges", PRICE_NOTE, cell(list.length, "edges") + cell(strong, "strong") + cell(agree, "model agrees"));
+  h += `<section><h2>Edges right now</h2>`;
+  h += list.length ? `<div class="cards">` + list.map(g => {
+    const t = g[0];
+    const tag = t.model === "agrees" ? `<span class="small pos">★ model agrees</span>` : t.model === "opposes" ? `<span class="small neg">model leans the other way</span>` : "";
+    return `<article class="card"><div class="top2"><span class="small muted">${esc(kick(t.date))}</span>${pill(t.tier)}</div>
+      <div class="game">${esc(t.away)} at ${esc(t.home)} · ${t.market === "ml" ? "Winner" : t.market === "spread" ? "Point spread" : "Total points"}</div>
+      <div class="big">${esc(t.pick)}</div>
+      <div class="small muted">Pinnacle's fair chance: <b>${pct(t.fair_p)}</b> ${tag}</div>
+      ${g.map(e => `<div class="foot small"><span>${esc(e.venue)} <b>${e.price > 0 ? "+" : ""}${e.price}</b></span><span class="pos">${spct(e.edge)} edge</span></div>`).join("")}
+      <div class="small muted">Suggested stake: about <b>${(t.stake * 100).toFixed(1)}%</b> of your bankroll (a quarter of the Kelly size, capped at 2%).</div></article>`; }).join("") + `</div>`
+    : `<div class="empty">No exchange price beats Pinnacle's fair price by 2% or more right now. That is normal. Edges come and go, and the cloud run checks again before games.</div>`;
+  return h + `</section>`;
+}
+function sharpHtml() {
+  const c = state.clv || [];
+  let h = `<section><h3>Sharpness: did we beat the closing price?</h3><p class="note">The price we saw first versus Pinnacle's last price before kickoff. Beating the close more often than not is the best early sign a bet was a real edge. It shows up in weeks, not seasons. Needs at least 30 picks in a row before it means much.</p>`;
+  if (!c.length) return h + `<div class="empty">Appears after games with a saved closing price have kicked off.</div></section>`;
+  h += `<div class="box"><table class="stack"><thead><tr><th>Group</th><th class="n">Picks</th><th class="n">Beat the close</th><th class="n">Same</th><th class="n">Worse</th><th class="n">Beat %</th><th class="n">Average</th></tr></thead><tbody>` +
+    c.map(r => `<tr><td class="full">${esc(r.group)}</td><td data-label="Picks" class="n">${r.n}</td><td data-label="Beat" class="n">${r.beat}</td><td data-label="Same" class="n">${r.same}</td><td data-label="Worse" class="n">${r.worse}</td><td data-label="Beat %" class="n ${r.beat_pct != null && r.beat_pct > 0.5 ? "pos" : ""}">${r.beat_pct == null ? "–" : (r.beat_pct * 100).toFixed(0) + "%"}</td><td data-label="Average" class="n">${r.avg >= 0 ? "+" : ""}${r.avg.toFixed(2)} ${r.unit}</td></tr>`).join("") + `</tbody></table></div></section>`;
+  return h;
 }
 function resultsHtml() {
   const f = state.f;
@@ -413,7 +446,7 @@ function statTable(title, note, groups) {
 }
 function viewRecord() {
   const G = state.graded;
-  if (!G.length) return hero("Results", "Record", "", "") + `<div class="empty">No graded picks yet. ${state.local ? `After games finish, open the <b>Run</b> tab and press <b>Grade past picks</b>.` : `Results show up here after the weekend's games are graded.`}</div>` + loadPanel();
+  if (!G.length) return hero("Results", "Record", "", "") + `<div class="empty">No graded picks yet. ${state.local ? `After games finish, open the <b>Run</b> tab and press <b>Grade past picks</b>.` : `Results show up here after the weekend's games are graded.`}</div>` + sharpHtml() + loadPanel();
   const done = G.filter(r => r.result !== "pending"), pend = G.length - done.length;
   const withG = done.map(r => ({ ...r, group: groupOf(r) }));
   const rec = withG.filter(r => r.group === GROUPS[0]), trk = withG.filter(r => r.group === GROUPS[1]);
@@ -422,6 +455,7 @@ function viewRecord() {
   let h = hero("Results", "Record", `${done.length} graded picks${pend ? `, ${pend} waiting on games` : ""}. Each bet is a flat 1-unit stake. Only Strong and Lean picks are recommendations. A few dozen picks is mostly luck.`, "");
   h += `<div class="tiles">${tile(sr.rec, "Recommended bets (W-L-P)")}${tile(units(sr.u), "Units on recommended bets", sr.u > 0 ? "pos" : sr.u < 0 ? "neg" : "")}${tile(spct(sr.roi), "ROI on recommended bets", sr.u > 0 ? "pos" : sr.u < 0 ? "neg" : "")}${tile(st.rec, "Tracked leans (not bets)")}</div>`;
   h += chartUnits(rec);
+  h += sharpHtml();
   h += statTable("Headline", "Tracked leans are the model's side in no-edge games, kept so we can check the labels.", GROUPS.map(n => ({ name: n, rows: withG.filter(r => r.group === n) })));
   h += statTable("Recommended bets by bet type", "Break-even % is the win rate needed to make money at the odds taken (52.4% at -110).",
     Object.keys(BET).map(k => ({ name: BET[k], rows: rec.filter(r => r.market === k) })));
@@ -466,7 +500,15 @@ function loadPanel() {
 
 /* ---------- How it works ---------- */
 function viewHow() {
-  return hero("The method", "How it works", "", "") + `<section><h2>Four steps</h2><div class="steps">
+  return hero("The method", "How it works", "", "") + `<section><h2>Price edges and the closing price</h2>
+    <div class="steps">
+    <div class="step"><h3>What a price edge is</h3><p>Pinnacle is the sharpest book we can see. After removing its fee (the "no-vig" price), its number is the best estimate of the true chance. If an exchange (Kalshi, Novig, ProphetX, Polymarket) offers the <b>same line</b> at a better price, that is a positive-value bet with no model involved. Lines that differ are skipped, because the fair chance changes with the number.</p></div>
+    <div class="step"><h3>How edges are labeled</h3><p>The edge is the expected return per $1 at that price, after an assumed 1% exchange fee. <b>Lean</b> is 2% to 4%. <b>Strong</b> is 4% or more. Anything over 10% is hidden, because it is almost always a stale or mismatched price. A star means the model backs the same side. A warning means the model leans the other way, so look closer before betting.</p></div>
+    <div class="step"><h3>Suggested stake</h3><p>A quarter of the Kelly size, capped at 2% of your bankroll, using Pinnacle's fair chance. Check the price on the exchange before betting. These prices move fast and can be gone by the time you look.</p></div>
+    <div class="step"><h3>Beating the closing price</h3><p>The Sharpness table on the Record tab compares the Pinnacle price we first saw with its last price before kickoff. Beating it more often than not is the standard early sign that a bet was a real edge. It needs far fewer bets than win-loss results, but wait for about 30 picks in a group before trusting it.</p></div>
+    <div class="step"><h3>When prices are saved</h3><p>Every picks run saves Pinnacle's price. Two small extra runs (Wednesday 5 PM and Saturday 6 PM Eastern) catch the closing price for midweek and late Saturday games. The closing price is the last one seen before kickoff, not a true close, and runs only count if they happen within 10 hours of kickoff.</p></div>
+    <div class="step"><h3>Limits</h3><p>The free price feed shows only the moment we check it. Edges are re-checked on each run, not live. This is a second opinion, not betting advice.</p></div>
+    </div></section>` + `<section><h2>Four steps</h2><div class="steps">
     <div class="step"><h3>1. Predict</h3><p>For every game the model predicts the margin and the total points, using team efficiency, Elo, rest, recruiting talent, returning players and the betting line itself.</p></div>
     <div class="step"><h3>2. Compare</h3><p>It turns those predictions into chances to cover, go over, or win, and compares them with what the odds imply.</p></div>
     <div class="step"><h3>3. Adjust</h3><p>Backtests showed the model overrates its own edges, so its chances are pulled back toward the market before anything is labeled.</p></div>
@@ -546,10 +588,10 @@ function viewRun() {
 
 /* ---------- shell ---------- */
 function render() {
-  const tabs = [["week", "This week"], ["record", "Record"], ["how", "How it works"]].concat(state.local ? [["run", "Run"]] : []);
+  const tabs = [["week", "This week"], ["edges", "Price edges"], ["record", "Record"], ["how", "How it works"]].concat(state.local ? [["run", "Run"]] : []);
   $("#tabs").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${n}</button>`).join("");
   $("#bottom").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${icon(k)}<span>${k === "how" ? "How" : n}</span></button>`).join("");
-  const body = state.tab === "run" ? viewRun() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
+  const body = state.tab === "run" ? viewRun() : state.tab === "edges" ? viewEdges() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;gap:22px">${body}</div>`;
   syncThemeBtn();
   const lg = $("#log"); if (lg) lg.scrollTop = lg.scrollHeight;
@@ -639,7 +681,7 @@ async function poll() {
 }
 async function loadLocal() {
   const d = await (await fetch("/api/data")).json();
-  state.picks = d.picks; state.pickFile = d.picks_file; state.graded = d.graded;
+  state.picks = d.picks; state.pickFile = d.picks_file; state.graded = d.graded; state.edges = d.edges || []; state.clv = d.clv || [];
   state.cloud = d.source === "cloud"; if (state.cloud) state.updated = d.updated;
 }
 function parseCSV(txt) {
@@ -659,7 +701,7 @@ function parseCSV(txt) {
 
 (async function init() {
   const h = location.hash.replace("#", "");
-  if (["week", "record", "how", "run"].includes(h)) state.tab = h;
+  if (["week", "edges", "record", "how", "run"].includes(h)) state.tab = h;
   try {
     const r = await fetch("/api/status");
     if (r.ok) { const s = await r.json(); if (s && s.local) { state.local = true; state.status = s; state.hasKey = s.has_key; await loadLocal(); } }
@@ -667,11 +709,11 @@ function parseCSV(txt) {
   if (!state.local) {
     if (state.tab === "run") state.tab = "week";
     let emb = null; try { emb = JSON.parse($("#embedded").textContent); } catch (e) {}
-    if (emb && emb.picks) { state.embedded = true; state.picks = emb.picks; state.pickFile = emb.picks_file; state.graded = emb.graded || []; }
+    if (emb && emb.picks) { state.embedded = true; state.picks = emb.picks; state.pickFile = emb.picks_file; state.graded = emb.graded || []; state.edges = emb.edges || []; state.clv = emb.clv || []; }
     else {
       try {   // on the public site, the latest picks sit next to this page in data.json
         const r = await fetch("data.json?t=" + Date.now(), { cache: "no-store" });
-        if (r.ok) { const j = await r.json(); if (j && (j.picks || j.graded)) { state.embedded = true; state.picks = j.picks || []; state.pickFile = j.picks_file; state.graded = j.graded || []; state.updated = j.updated; } }
+        if (r.ok) { const j = await r.json(); if (j && (j.picks || j.graded)) { state.embedded = true; state.picks = j.picks || []; state.pickFile = j.picks_file; state.graded = j.graded || []; state.edges = j.edges || []; state.clv = j.clv || []; state.updated = j.updated; } }
       } catch (e) {}
       if (!state.embedded) {
         try { const p = JSON.parse(store.get("cfb.picks") || "null"); if (p) { state.picks = p.rows; state.pickFile = p.name; } } catch (e) {}
