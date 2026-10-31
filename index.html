@@ -90,7 +90,7 @@ section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .Strong, .W { background: var(--good-bg); color: var(--good-fg); }
 .Lean { background: var(--lean-bg); color: var(--lean-fg); }
 .NoEdge, .Noline, .P, .pending { background: var(--flat-bg); color: var(--flat-fg); }
-.LongShot { background: var(--long-bg); color: var(--long-fg); }
+.LongShot, .Generousprice { background: var(--long-bg); color: var(--long-fg); }
 .L { background: var(--bad-bg); color: var(--bad-fg); }
 .pos { color: var(--good-fg); font-weight: 600; } .neg { color: var(--bad-fg); font-weight: 600; }
 
@@ -126,6 +126,12 @@ section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .bet .k { font: 600 11px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .bet .v { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 600; overflow-wrap: anywhere; }
 .bet.dim .v b { color: var(--muted); font-weight: 500; }
+.bet .sub { flex-basis: 100%; text-align: right; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.key { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 8px 16px; font-size: 13px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.key div { display: flex; gap: 8px; align-items: baseline; }
+.key .pill { flex: none; }
+.why { grid-column: 1 / -1; font-size: 13px; line-height: 1.45; color: var(--long-fg); background: var(--long-bg); border-radius: 6px; padding: 7px 10px; }
+.why b { font-weight: 700; }
 
 /* tables (stack on phones) */
 .box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
@@ -204,10 +210,10 @@ footer { border-top: 1px solid var(--line); padding-top: 14px; display: flex; fl
 "use strict";
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const STRONG = 0.05, LEAN = 0.03, LONG_ODDS = 400, GAP_S = 10, GAP_T = 8, MIN_S = 2.0, MIN_T = 2.5;
+const STRONG = 0.05, LEAN = 0.03, LONG_ODDS = 400, AGAINST_P = 0.5, GAP_S = 10, GAP_T = 8, MIN_S = 2.0, MIN_T = 2.5;
 const BET = { spread: "Point spread", total: "Total points", moneyline: "Winner (moneyline)" };
 const BETSHORT = { spread: "Spread", total: "Total", moneyline: "Winner" };
-const GROUPS = ["Recommended bets (Strong + Lean)", "Tracked leans (No edge, not bets)", "Long shots (flagged, not recommended)"];
+const GROUPS = ["Recommended bets", "Not bets: no edge (tracked to check the labels)", "Not bets: flagged (long shots and generous prices)"];
 
 let state = { local: false, hasKey: false, picks: [], pickFile: null, graded: [], edges: [], clv: [], tab: "week", status: null, f: { type: "all", rec: false, q: "" } };
 const store = {
@@ -238,8 +244,9 @@ const kick = s => { const d = okd(s); return d ? dtf.format(d) + " ET" : ""; };
 const kickT = s => { const d = okd(s); return d ? dtfTime.format(d) + " ET" : ""; };
 const dayOf = s => { const d = okd(s); return d ? dtfDay.format(d) : "Date to be set"; };
 const decOdds = o => o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o);
-function verdict(ev, longShot) {
+function verdict(ev, longShot, against) {
   if (ev == null || isNaN(ev)) return "No line";
+  if (against && ev >= LEAN) return "Generous price";
   if (longShot) return "Long shot";
   return ev >= STRONG ? "Strong" : ev >= LEAN ? "Lean" : "No edge";
 }
@@ -261,7 +268,7 @@ function betsOf(p) {
     out.push({ type: "total", game: p, pick: p.total_pick, p: p.total_p, ev: p.total_ev, v: verdict(p.total_ev, false) });
   if (p.ml_pick != null && p.ml_ev != null) {
     const pr = p.ml_side === "home" ? p.home_win_p : 1 - p.home_win_p;
-    out.push({ type: "moneyline", game: p, pick: p.ml_pick + " " + fmtOdds(p.ml_odds), p: pr, ev: p.ml_ev, v: verdict(p.ml_ev, p.ml_odds >= LONG_ODDS) });
+    out.push({ type: "moneyline", game: p, pick: p.ml_pick + " " + fmtOdds(p.ml_odds), p: pr, ev: p.ml_ev, v: verdict(p.ml_ev, p.ml_odds >= LONG_ODDS, p.ml_odds > 0 && pr < AGAINST_P) });
   }
   return out;
 }
@@ -321,13 +328,19 @@ function viewWeek() {
     <div class="seg">${[["all", "All"], ["spread", "Spread"], ["total", "Total"], ["moneyline", "Winner"]].map(([k, n]) => `<button data-f="type" data-v="${k}" aria-pressed="${f.type === k}">${n}</button>`).join("")}</div>
     <button class="toggle" data-f="rec" aria-pressed="${f.rec}">Recommended only</button>
     <input type="search" id="q" placeholder="Search a team" value="${esc(f.q)}" aria-label="Search a team"></div>`;
-  return h + filters + `<div id="results" style="display:flex;flex-direction:column;gap:22px">${resultsHtml()}</div>`;
+  const key = `<details class="keywrap" open><summary class="small muted" style="cursor:pointer;margin-bottom:6px">What the labels mean</summary><div class="key">
+    <div>${pill("Strong")}<span>Bet it. Expected return 5%+ per $1 after adjusting.</span></div>
+    <div>${pill("Lean")}<span>Small bet. Expected return 3% to 5%.</span></div>
+    <div>${pill("No edge")}<span>Skip. The price is about fair, nothing to gain.</span></div>
+    <div>${pill("Generous price")}<span>Skip. The price pays a bit extra, but the model still picks the other team.</span></div>
+    <div>${pill("Long shot")}<span>Skip. A +400 or longer underdog. Mostly noise.</span></div></div></details>`;
+  return h + filters + key + `<div id="results" style="display:flex;flex-direction:column;gap:22px">${resultsHtml()}</div>`;
 }
 /* Suggested stake: quarter Kelly on the adjusted chance, capped at 2% of bankroll. A rough guide, not advice. */
 function stakeHtml(p, dec) {
   const b = dec - 1; if (!(b > 0) || !(p > 0)) return "";
   const q = Math.min(0.02, Math.max(0, (p * b - (1 - p)) / b) / 4);
-  return q > 0 ? `<div class="small muted" style="margin-top:6px">Suggested stake: about <b>${(q * 100).toFixed(1)}%</b> of your bankroll (a quarter of the Kelly size, capped at 2%).</div>` : "";
+  return q > 0 ? `<div class="small muted" style="margin-top:6px">Suggested stake: <b>${(q * 100).toFixed(1)}u</b> (1u = 1% of your bankroll. A quarter of the Kelly size, max 2u).</div>` : "";
 }
 function shopHtml(b) {
   const t = (b.type === "spread" ? b.game.spread_shop : b.type === "total" ? b.game.total_shop : b.game.ml_shop) || "";
@@ -345,16 +358,16 @@ function viewEdges() {
   const list = Object.values(groups).map(g => g.sort((a, b) => b.edge - a.edge)).sort((a, b) => b[0].edge - a[0].edge);
   const strong = list.filter(g => g[0].tier === "Strong").length, agree = list.filter(g => g[0].model === "agrees").length;
   let h = hero("Prices that beat the sharpest book", "Price edges", PRICE_NOTE, cell(list.length, "edges") + cell(strong, "strong") + cell(agree, "model agrees"));
-  h += `<section><h2>Edges right now</h2>`;
+  h += `<section><h2>Edges right now</h2><p class="note"><b>Model agrees</b>: our model also likes this side, the strongest kind. <b>Model has no view</b>: the model doesn't see a bet either way, so this is a pure price play. <b>Model picks the other side</b>: be careful, the model likes the other team here.</p>`;
   h += list.length ? `<div class="cards">` + list.map(g => {
     const t = g[0];
-    const tag = t.model === "agrees" ? `<span class="small pos">★ model agrees</span>` : t.model === "opposes" ? `<span class="small neg">model leans the other way</span>` : "";
+    const tag = t.model === "agrees" ? `<span class="small pos">★ Model agrees</span>` : t.model === "opposes" ? `<span class="small neg">⚠ Model picks the other side</span>` : `<span class="small muted">Model has no view</span>`;
     return `<article class="card"><div class="top2"><span class="small muted">${esc(kick(t.date))}</span>${pill(t.tier)}</div>
       <div class="game">${esc(t.away)} at ${esc(t.home)} · ${t.market === "ml" ? "Winner" : t.market === "spread" ? "Point spread" : "Total points"}</div>
       <div class="big">${esc(t.pick)}</div>
       <div class="small muted">Pinnacle's fair chance: <b>${pct(t.fair_p)}</b> ${tag}</div>
       ${g.map(e => `<div class="foot small"><span>${esc(e.venue)} <b>${e.price > 0 ? "+" : ""}${e.price}</b></span><span class="pos">${spct(e.edge)} edge</span></div>`).join("")}
-      <div class="small muted">Suggested stake: about <b>${(t.stake * 100).toFixed(1)}%</b> of your bankroll (a quarter of the Kelly size, capped at 2%).</div></article>`; }).join("") + `</div>`
+      <div class="small muted">Suggested stake: <b>${(t.stake * 100).toFixed(1)}u</b> (1u = 1% of your bankroll. A quarter of the Kelly size, max 2u).</div></article>`; }).join("") + `</div>`
     : `<div class="empty">No exchange price beats Pinnacle's fair price by 2% or more right now. That is normal. Edges come and go, and the cloud run checks again before games.</div>`;
   return h + `</section>`;
 }
@@ -410,9 +423,14 @@ function resultsHtml() {
     const day = dayOf(p.date);
     if (!seen[day]) { seen[day] = 1; body += `<div class="day"><h3>${esc(day)}</h3></div>`; }
     any = true;
-    const cellH = t => { const x = by(t); return `<div class="bet ${x && !isRec(x.v) ? "dim" : ""}"><span class="k">${BETSHORT[t]}</span><span class="v">${x ? `<b>${esc(x.pick)}</b>${pill(x.v)}` : `<span class="muted">No line</span>`}</span></div>`; };
+    const mlb = by("moneyline"), against = !!(mlb && mlb.v === "Generous price");
+    const other = against ? (p.ml_side === "home" ? p.away : p.home) : "";
+    const cellH = t => { const x = by(t);
+      if (t === "moneyline" && against)
+        return `<div class="bet dim"><span class="k">${BETSHORT[t]}</span><span class="v"><b>${esc(x.pick)}</b><span class="pill Generousprice">Generous price</span><span class="sub">Not a pick: model still picks ${esc(other)} (${pct(1 - mlb.p, 0)})</span></span></div>`;
+      return `<div class="bet ${x && !isRec(x.v) ? "dim" : ""}"><span class="k">${BETSHORT[t]}</span><span class="v">${x ? `<b>${esc(x.pick)}</b>${pill(x.v)}` : `<span class="muted">No line</span>`}</span></div>`; };
     body += `<div class="game-row"><div class="head"><span class="when">${esc(kickT(p.date))}</span></div>
-      <div class="teams">${esc(p.away)} at ${esc(p.home)}</div>${types.map(cellH).join("")}</div>`;
+      <div class="teams">${esc(p.away)} at ${esc(p.home)}</div>${types.map(cellH).join("")}${against && types.includes("moneyline") ? `<div class="why"><b>Why is ${esc(p.ml_pick)} ${fmtOdds(p.ml_odds)} labeled &ldquo;Generous price&rdquo;?</b> The model gives them a ${pct(mlb.p, 0)} chance, and that price only needs ${pct(1 / decOdds(p.ml_odds), 0)}, so the price looks a little generous. But the model still picks <b>${esc(other)}</b> to win (${pct(1 - mlb.p, 0)}), so we don't recommend it. Prices on big underdogs swing a lot from small model errors.</div>` : ""}</div>`;
   }
   h += any ? `<div class="games">${body}</div>` : `<div class="empty">No games match those filters.</div>`;
   return h + `</section>`;
@@ -425,23 +443,30 @@ function emptyPicks() {
 
 /* ---------- Record ---------- */
 function groupOf(g) {
-  const long = g.market === "moneyline" && g.line_or_odds >= LONG_ODDS;
+  const long = g.market === "moneyline" && (g.line_or_odds >= LONG_ODDS || (g.line_or_odds > 0 && g.model_prob < AGAINST_P && g.ev >= LEAN));
   const v = g.ev >= STRONG ? "Strong" : g.ev >= LEAN ? "Lean" : "No edge";
   return long ? GROUPS[2] : (v === "No edge" ? GROUPS[1] : GROUPS[0]);
 }
-function stats(rows) {
+/* Suggested stake for a graded pick: quarter Kelly on the saved adjusted chance and odds, capped at 2% of bankroll (same rule as the picks). */
+function stakeOf(r) {
+  const dec = r.market === "moneyline" ? decOdds(r.line_or_odds) : decOdds(-110), b = dec - 1, p = r.model_prob;
+  if (!(b > 0) || !(p > 0)) return 0;
+  return Math.min(0.02, Math.max(0, (p * b - (1 - p)) / b) / 4);
+}
+function stats(rows, staked) {
   const w = rows.filter(r => r.result === "W").length, l = rows.filter(r => r.result === "L").length, p = rows.filter(r => r.result === "P").length;
   const n = w + l + p, u = rows.reduce((s, r) => s + (r.units || 0), 0);
+  const su = rows.reduce((s, r) => s + (r.units || 0) * stakeOf(r) * 100, 0), risk = rows.reduce((s, r) => s + stakeOf(r) * 100, 0);
   const be = n ? rows.reduce((s, r) => s + 1 / (r.market === "moneyline" ? decOdds(r.line_or_odds) : decOdds(-110)), 0) / n : NaN;
   const mp = n ? rows.reduce((s, r) => s + (r.model_prob || 0), 0) / n : NaN;
-  return { n, w, l, p, rec: `${w}-${l}-${p}`, win: w + l ? w / (w + l) : NaN, be, mp, u, roi: n ? u / n : NaN };
+  return { n, w, l, p, rec: `${w}-${l}-${p}`, win: w + l ? w / (w + l) : NaN, be, mp, u, roi: n ? u / n : NaN, su, risk, sroi: risk ? su / risk : NaN };
 }
-function statTable(title, note, groups) {
+function statTable(title, note, groups, staked) {
   const rows = groups.filter(g => g.rows.length);
   if (!rows.length) return "";
-  return `<section><h3>${esc(title)}</h3>${note ? `<p class="note">${note}</p>` : ""}<div class="box"><table class="stack"><thead><tr><th>Group</th><th class="n">Picks</th><th class="n">Record</th><th class="n">Win %</th><th class="n">Break-even %</th><th class="n">Model's chance</th><th class="n">Units</th><th class="n">ROI</th></tr></thead><tbody>` +
-    rows.map(g => { const s = stats(g.rows); const c = s.u > 0 ? "pos" : s.u < 0 ? "neg" : "";
-      return `<tr><td class="full">${esc(g.name)}</td><td class="n" data-label="Picks">${s.n}</td><td class="n" data-label="Record">${s.rec}</td><td class="n" data-label="Win %">${pct(s.win)}</td><td class="n" data-label="Break-even %">${pct(s.be)}</td><td class="n" data-label="Model's chance">${pct(s.mp)}</td><td class="n ${c}" data-label="Units">${units(s.u)}</td><td class="n ${c}" data-label="ROI">${spct(s.roi)}</td></tr>`; }).join("") +
+  return `<section><h3>${esc(title)}</h3>${note ? `<p class="note">${note}</p>` : ""}<div class="box"><table class="stack"><thead><tr><th>Group</th><th class="n">Picks</th><th class="n">Record</th><th class="n">Win %</th><th class="n">Break-even %</th><th class="n">Model's chance</th><th class="n">${staked ? "Units won" : "Units (flat 1u)"}</th><th class="n">ROI</th></tr></thead><tbody>` +
+    rows.map(g => { const s = stats(g.rows); const v = staked ? s.su : s.u, ro = staked ? s.sroi : s.roi; const c = v > 0 ? "pos" : v < 0 ? "neg" : "";
+      return `<tr><td class="full">${esc(g.name)}</td><td class="n" data-label="Picks">${s.n}</td><td class="n" data-label="Record">${s.rec}</td><td class="n" data-label="Win %">${pct(s.win)}</td><td class="n" data-label="Break-even %">${pct(s.be)}</td><td class="n" data-label="Model's chance">${pct(s.mp)}</td><td class="n ${c}" data-label="${staked ? "Units won" : "Units"}">${staked ? units(v) + "u" : units(v) + "u"}</td><td class="n ${c}" data-label="ROI">${spct(ro)}</td></tr>`; }).join("") +
     `</tbody></table></div></section>`;
 }
 function viewRecord() {
@@ -452,14 +477,14 @@ function viewRecord() {
   const rec = withG.filter(r => r.group === GROUPS[0]), trk = withG.filter(r => r.group === GROUPS[1]);
   const sr = stats(rec), st = stats(trk);
   const tile = (b, l, c) => `<div class="tile"><b class="${c || ""}">${b}</b><span>${l}</span></div>`;
-  let h = hero("Results", "Record", `${done.length} graded picks${pend ? `, ${pend} waiting on games` : ""}. Each bet is a flat 1-unit stake. Only Strong and Lean picks are recommendations. A few dozen picks is mostly luck.`, "");
-  h += `<div class="tiles">${tile(sr.rec, "Recommended bets (W-L-P)")}${tile(units(sr.u), "Units on recommended bets", sr.u > 0 ? "pos" : sr.u < 0 ? "neg" : "")}${tile(spct(sr.roi), "ROI on recommended bets", sr.u > 0 ? "pos" : sr.u < 0 ? "neg" : "")}${tile(st.rec, "Tracked leans (not bets)")}</div>`;
+  let h = hero("Results", "Record", `${done.length} graded picks${pend ? `, ${pend} waiting on games` : ""}. Recommended bets are tracked at the suggested stake (1u = 1% of your bankroll, a quarter of the Kelly size, max 2u), so a Strong pick counts for more than a Lean one. Other groups are shown as flat 1u bets for comparison. A few dozen picks is mostly luck.`, "");
+  h += `<div class="tiles">${tile(sr.rec, "Recommended bets (W-L-P)")}${tile(units(sr.su) + "u", "Units won on recommended bets (at suggested stakes)", sr.su > 0 ? "pos" : sr.su < 0 ? "neg" : "")}${tile(spct(sr.sroi), "ROI on the money staked", sr.su > 0 ? "pos" : sr.su < 0 ? "neg" : "")}${tile(st.rec, "No edge picks (not bets)")}</div>`;
   h += chartUnits(rec);
   h += sharpHtml();
-  h += statTable("Headline", "Tracked leans are the model's side in no-edge games, kept so we can check the labels.", GROUPS.map(n => ({ name: n, rows: withG.filter(r => r.group === n) })));
-  h += statTable("Recommended bets by bet type", "Break-even % is the win rate needed to make money at the odds taken (52.4% at -110).",
-    Object.keys(BET).map(k => ({ name: BET[k], rows: rec.filter(r => r.market === k) })));
-  h += statTable("Tracked leans by bet type", "Not bets. If these win more than break-even, the model may be too cautious.",
+  h += statTable("Headline (every group as flat 1u bets, for comparison)", "<b>Recommended bets</b> are the Strong and Lean picks, the only ones the model says to bet. <b>No edge</b> picks are the model's side in games where it sees nothing, graded only so we can check the labels. <b>Flagged</b> picks are +400 long shots and Generous prices (the model still picks the other team), graded to check whether we were right to skip them.", GROUPS.map(n => ({ name: n, rows: withG.filter(r => r.group === n) })));
+  h += statTable("Recommended bets by bet type (at suggested stakes)", "Units won adds up each bet's profit at its suggested stake (1u = 1% of your bankroll). Break-even % is the win rate needed to make money at the odds taken (52.4% at -110).",
+    Object.keys(BET).map(k => ({ name: BET[k], rows: rec.filter(r => r.market === k) })), true);
+  h += statTable("No edge picks by bet type", "Not bets. If these win more than break-even, the model may be too cautious.",
     Object.keys(BET).map(k => ({ name: BET[k], rows: trk.filter(r => r.market === k) })));
   const ml = withG.filter(r => r.market === "moneyline");
   h += statTable("Winner picks by price", "", [
@@ -468,7 +493,7 @@ function viewRecord() {
     { name: "Underdogs +250 to +399", rows: ml.filter(r => r.line_or_odds >= 250 && r.line_or_odds < 400) },
     { name: "Long shots +400 or more", rows: ml.filter(r => r.line_or_odds >= 400) }]);
   const recent = [...G].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 60);
-  h += `<section><h3>Recent picks</h3><div class="box"><table class="stack"><thead><tr><th>Kickoff</th><th>Bet</th><th>Pick</th><th>Final</th><th>Result</th><th class="n">Units</th></tr></thead><tbody>` +
+  h += `<section><h3>Recent picks</h3><div class="box"><table class="stack"><thead><tr><th>Pick</th><th>Kickoff</th><th>Result</th><th>Final score</th><th class="n">Units</th></tr></thead><tbody>` +
     recent.map(r => `<tr><td class="full">${esc(r.pick)} <span class="muted" style="font-weight:400">· ${BET[r.market] || esc(r.market)}</span></td><td data-label="Kickoff">${esc(kick(r.date))}</td><td data-label="Result">${pill(r.result)}</td><td class="full" style="font-weight:400">${esc(r.final || "not played yet")}</td><td class="n" data-label="Units">${r.units == null ? "" : units(r.units)}</td></tr>`).join("") +
     `</tbody></table></div></section>`;
   return h + loadPanel();
@@ -476,19 +501,19 @@ function viewRecord() {
 function chartUnits(rec) {
   const rows = [...rec].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   if (rows.length < 2) return `<section><h3>Recommended bets, running total</h3><div class="empty">The chart appears once there are two or more graded recommended bets.</div></section>`;
-  let c = 0; const pts = rows.map((r, i) => (c += r.units || 0, { i: i + 1, y: c }));
+  let c = 0; const pts = rows.map((r, i) => (c += (r.units || 0) * stakeOf(r) * 100, { i: i + 1, y: c }));
   const W = Math.max(300, Math.min(640, document.documentElement.clientWidth - 64)), H = 200, L = 44, R = 16, T = 14, B = 28;
   const lo = Math.min(0, ...pts.map(p => p.y)), hi = Math.max(0, ...pts.map(p => p.y));
   const span = (hi - lo) || 1, pad = span * 0.12, y0 = lo - pad, y1 = hi + pad;
   const X = i => L + (i - 1) / (pts.length - 1) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
-  const ticks = [...new Set([Math.round(lo), 0, Math.round(hi)])];
+  const rd = v => Math.round(v * 10) / 10, ticks = [...new Set([rd(lo), 0, rd(hi)])];
   const path = pts.map((p, k) => (k ? "L" : "M") + X(p.i).toFixed(1) + " " + Y(p.y).toFixed(1)).join(" ");
   const last = pts[pts.length - 1];
-  return `<section><h3>Recommended bets, running total</h3><div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running units won on recommended bets, ending at ${units(last.y)}">
+  return `<section><h3>Recommended bets, running total (units at suggested stakes)</h3><div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Running units won on recommended bets, ending at ${units(last.y)}u">
     ${ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}" style="stroke:var(--line)" stroke-width="${t === 0 ? 1.5 : 1}"/><text x="${L - 6}" y="${Y(t) + 4}" text-anchor="end" font-size="11" style="fill:var(--muted)">${t > 0 ? "+" : ""}${t}</text>`).join("")}
     <path d="${path}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>
     <circle cx="${X(last.i)}" cy="${Y(last.y)}" r="4.5" style="fill:var(--accent)"/>
-    <text x="${W - R}" y="${T + 2}" text-anchor="end" font-size="12" font-weight="600" style="fill:var(--ink)">Now ${units(last.y)} units</text>
+    <text x="${W - R}" y="${T + 2}" text-anchor="end" font-size="12" font-weight="600" style="fill:var(--ink)">Now ${units(last.y)}u</text>
     <text x="${L}" y="${H - 8}" font-size="11" style="fill:var(--muted)">bet 1</text><text x="${W - R}" y="${H - 8}" text-anchor="end" font-size="11" style="fill:var(--muted)">bet ${pts.length}</text></svg></div></section>`;
 }
 function loadPanel() {
@@ -503,8 +528,8 @@ function viewHow() {
   return hero("The method", "How it works", "", "") + `<section><h2>Price edges and the closing price</h2>
     <div class="steps">
     <div class="step"><h3>What a price edge is</h3><p>Pinnacle is the sharpest book we can see. After removing its fee (the "no-vig" price, using a method that puts more of the fee on long shots), its number is the best estimate of the true chance. If an exchange (Kalshi, Novig, ProphetX, Polymarket) offers the <b>same line</b> at a better price, that is a positive-value bet with no model involved. Lines that differ are skipped, because the fair chance changes with the number.</p></div>
-    <div class="step"><h3>How edges are labeled</h3><p>The edge is the expected return per $1 at that price, after an assumed 1% exchange fee. <b>Lean</b> is 2% to 4%. <b>Strong</b> is 4% or more. Anything over 10% is hidden, because it is almost always a stale or mismatched price. Prices of +400 or longer are never shown, because big underdog prices are where fake edges hide. A star means the model backs the same side. A warning means the model leans the other way, so look closer before betting.</p></div>
-    <div class="step"><h3>Suggested stake</h3><p>A quarter of the Kelly size, capped at 2% of your bankroll, using Pinnacle's fair chance. Check the price on the exchange before betting. These prices move fast and can be gone by the time you look.</p></div>
+    <div class="step"><h3>How edges are labeled</h3><p>The edge is the expected return per $1 at that price, after an assumed 1% exchange fee. <b>Lean</b> is 2% to 4%. <b>Strong</b> is 4% or more. Anything over 10% is hidden, because it is almost always a stale or mismatched price. Prices of +400 or longer are never shown, because big underdog prices are where fake edges hide. "Model agrees" means our model backs the same side. "Model has no view" means it is a pure price play. "Model picks the other side" is a warning: look closer before betting.</p></div>
+    <div class="step"><h3>Suggested stake</h3><p>A quarter of the Kelly size, max 2u, using Pinnacle's fair chance. 1u is 1% of your bankroll. Check the price on the exchange before betting. These prices move fast and can be gone by the time you look.</p></div>
     <div class="step"><h3>Beating the closing price</h3><p>The Sharpness table on the Record tab compares the Pinnacle price we first saw with its last price before kickoff. Beating it more often than not is the standard early sign that a bet was a real edge. It needs far fewer bets than win-loss results, but wait for about 30 picks in a group before trusting it.</p></div>
     <div class="step"><h3>When prices are saved</h3><p>Every picks run saves Pinnacle's price. Two small extra runs (Wednesday 5 PM and Saturday 6 PM Eastern) catch the closing price for midweek and late Saturday games. The closing price is the last one seen before kickoff, not a true close, and runs only count if they happen within 10 hours of kickoff.</p></div>
     <div class="step"><h3>Limits</h3><p>The free price feed shows only the moment we check it. Edges are re-checked on each run, not live. This is a second opinion, not betting advice.</p></div>
@@ -512,13 +537,13 @@ function viewHow() {
     <div class="step"><h3>1. Predict</h3><p>For every game the model predicts the margin and the total points, using team efficiency, Elo, rest, recruiting talent, returning players and the betting line itself.</p></div>
     <div class="step"><h3>2. Compare</h3><p>It turns those predictions into chances to cover, go over, or win, and compares them with what the odds imply.</p></div>
     <div class="step"><h3>3. Adjust</h3><p>Backtests showed the model overrates its own edges, so its chances are pulled back toward the market before anything is labeled.</p></div>
-    <div class="step"><h3>4. Label</h3><p><b>Strong</b> = adjusted return 5%+, <b>Lean</b> = 3% to 5%, <b>No edge</b> = under 3%. <b>Long shot</b> flags +400 or longer underdogs, which are mostly noise.</p></div></div></section>
+    <div class="step"><h3>4. Label</h3><p><b>Strong</b> = adjusted return 5%+, <b>Lean</b> = 3% to 5%, <b>No edge</b> = under 3%. <b>Long shot</b> flags +400 or longer underdogs, which are mostly noise.</p><p style="margin-top:8px"><b>Generous price</b> flags a moneyline underdog whose price pays a bit more than the model's chance for them, while the model still has the other team winning more than half the time. It is never a recommendation. It only becomes a pick if the model itself picks that team.</p></div></div></section>
   <section><h2>What the backtest found</h2><p class="note">About 4,500 games from 2020 to 2026, each predicted using only earlier data.</p>
     <div class="facts">
       <div class="fact"><b>12.23 vs 12.16</b><span class="small muted">average miss in points on the spread, model vs betting line. The line is slightly better.</span></div>
       <div class="fact"><b>12.73 vs 12.63</b><span class="small muted">average miss in points on totals, model vs betting line.</span></div>
       <div class="fact"><b>-0.4% / -6.6%</b><span class="small muted">simulated return betting every spread / total the raw model liked, before the adjustment above.</span></div></div></section>
-  <section><h2>How to read the picks</h2><p class="note"><b>Biggest disagreements</b> ranks games by how far the model is from the line, in points. A big gap is a reason to look, not a reason to bet. Gaps of 10+ points on a spread (8+ on a total) usually mean the model is missing news such as an injury. The model has no injury or weather data. <b>Break-even</b> is the win rate needed to make money at the odds: 52.4% at -110. <b>Tracked leans</b> are the model's side in no-edge games, graded only to check the labels.</p></section>`;
+  <section><h2>How to read the picks</h2><p class="note"><b>Biggest disagreements</b> ranks games by how far the model is from the line, in points. A big gap is a reason to look, not a reason to bet. Gaps of 10+ points on a spread (8+ on a total) usually mean the model is missing news such as an injury. The model has no injury or weather data. <b>Break-even</b> is the win rate needed to make money at the odds: 52.4% at -110. <b>No edge picks</b> are the model's side in games where it sees nothing, graded only to check the labels. <b>Flagged picks</b> (long shots and Generous prices) are graded too, to check we were right to skip them.</p></section>`;
 }
 
 /* ---------- Run (local app only) ---------- */
