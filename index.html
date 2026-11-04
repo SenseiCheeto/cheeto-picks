@@ -255,7 +255,7 @@ const isRec = v => v === "Strong" || v === "Lean";
 function icon(n) {
   const p = { week: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     record: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>', how: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/>',
-    run: '<path d="M7 4l13 8-13 8z"/>', edges: '<path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3"/>' }[n];
+    run: '<path d="M7 4l13 8-13 8z"/>', nfltest: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>', nfl: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', edges: '<path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 3 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3"/>' }[n];
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
 
@@ -349,7 +349,7 @@ function shopHtml(b) {
   return (t ? `<div class="small muted" style="margin-top:6px">Line shopping: ${esc(t)}</div>` : "") +
     (pe ? `<div class="small" style="margin-top:6px"><b class="pos">Price edge confirms:</b> ${esc(pe.venue)} ${pe.price > 0 ? "+" : ""}${pe.price} is ${spct(pe.edge)} better than Pinnacle's fair price.</div>` : "");
 }
-const PRICE_NOTE = "A price edge compares an exchange price with Pinnacle's no-vig number on the exact same line, after an assumed 1% fee. No model is involved.";
+const PRICE_NOTE = "A price edge compares an exchange price with Pinnacle's no-vig number on the exact same line, after an assumed 1% fee (Kalshi's real, higher fee formula is used for Kalshi). No model is involved.";
 function viewEdges() {
   const now = Date.now();
   const rows = (state.edges || []).filter(e => { const d = okd(e.date); return d && d.getTime() > now; });
@@ -528,7 +528,7 @@ function viewHow() {
   return hero("The method", "How it works", "", "") + `<section><h2>Price edges and the closing price</h2>
     <div class="steps">
     <div class="step"><h3>What a price edge is</h3><p>Pinnacle is the sharpest book we can see. After removing its fee (the "no-vig" price, using a method that puts more of the fee on long shots), its number is the best estimate of the true chance. If an exchange (Kalshi, Novig, ProphetX, Polymarket) offers the <b>same line</b> at a better price, that is a positive-value bet with no model involved. Lines that differ are skipped, because the fair chance changes with the number.</p></div>
-    <div class="step"><h3>How edges are labeled</h3><p>The edge is the expected return per $1 at that price, after an assumed 1% exchange fee. <b>Lean</b> is 2% to 4%. <b>Strong</b> is 4% or more. Anything over 10% is hidden, because it is almost always a stale or mismatched price. Prices of +400 or longer are never shown, because big underdog prices are where fake edges hide. "Model agrees" means our model backs the same side. "Model has no view" means it is a pure price play. "Model picks the other side" is a warning: look closer before betting.</p></div>
+    <div class="step"><h3>How edges are labeled</h3><p>The edge is the expected return per $1 at that price, after an assumed 1% exchange fee (Kalshi charges more, about 3% to 5% of what you stake, so its own formula is used). <b>Lean</b> is 2% to 4%. <b>Strong</b> is 4% or more. Anything over 10% is hidden, because it is almost always a stale or mismatched price. Prices of +400 or longer are never shown, because big underdog prices are where fake edges hide. "Model agrees" means our model backs the same side. "Model has no view" means it is a pure price play. "Model picks the other side" is a warning: look closer before betting.</p></div>
     <div class="step"><h3>Suggested stake</h3><p>A quarter of the Kelly size, max 2u, using Pinnacle's fair chance. 1u is 1% of your bankroll. Check the price on the exchange before betting. These prices move fast and can be gone by the time you look.</p></div>
     <div class="step"><h3>Beating the closing price</h3><p>The Sharpness table on the Record tab compares the Pinnacle price we first saw with its last price before kickoff. Beating it more often than not is the standard early sign that a bet was a real edge. It needs far fewer bets than win-loss results, but wait for about 30 picks in a group before trusting it.</p></div>
     <div class="step"><h3>When prices are saved</h3><p>Every picks run saves Pinnacle's price. Two small extra runs (Wednesday 5 PM and Saturday 6 PM Eastern) catch the closing price for midweek and late Saturday games. The closing price is the last one seen before kickoff, not a true close, and runs only count if they happen within 10 hours of kickoff.</p></div>
@@ -568,7 +568,7 @@ function viewCloud() {
   const st = (state.status && state.status.cloud) || {}, site = (state.status && state.status.site) || {};
   if (!site.configured) return "";
   if (st.configured) return `<div class="panel"><h3>4. Run in the cloud</h3>
-    <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 5 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks) and Sunday 10 AM (record), Eastern time. Your Mac can be off. Your Mac schedule is now just a backup.</p>
+    <p class="note">On. GitHub runs Cheeto Picks by itself Tuesday 5 PM, Thursday 6 PM, Friday 11 AM, Saturday 9 AM and noon (picks), Wednesday 5 PM and Saturday 6 PM (closing prices) and Sunday 12 PM (record), Eastern time. The private NFL test has its own schedule. Your Mac can be off. Your Mac schedule is now just a backup.</p>
     <p class="small"><a href="${esc(st.actions)}" target="_blank" rel="noopener">See cloud runs</a> · <a href="${esc(st.files)}" target="_blank" rel="noopener">Your private repository</a></p>
     <div class="row"><button class="btn" id="cloud-run">Run in the cloud now</button> <button class="btn" id="cloud-update">Update cloud copy</button></div>
     <p class="small muted">After you change anything in this folder (like installing an update), press <b>Update cloud copy</b> so the cloud uses it too.</p><p class="small muted" id="cloudmsg"></p></div>`;
@@ -611,18 +611,68 @@ function viewRun() {
     ${viewSite()}${viewCloud()}${viewDiscord()}</section>`;
 }
 
+/* ---------- NFL: public "coming soon" page (no picks, no data) ---------- */
+function viewNflSoon() {
+  const card = (t, p) => `<div class="step"><h3>${t}</h3><p>${p}</p></div>`;
+  return hero("Next up", "NFL", "Coming soon. We are testing it quietly first, and nothing goes live until it has earned it.", "") +
+    `<section><h2>What to expect</h2><div class="steps">` +
+    card("Price edges first", "The same idea as the Price edges tab: compare exchange prices with the sharpest book on the exact same line, and flag the ones that beat it.") +
+    card("Tested before shown", "We are running it in private for a few weeks and checking whether it beats the closing price. If it does not, it does not launch.") +
+    card("Same honest labels", "Strong, Lean and No edge, suggested stakes in units, and a Record tab. A second opinion, not a sure thing.") + `</div></section>
+    <p class="note">No NFL picks are posted yet, so there is nothing to bet here. We will announce it in Discord when it is ready.</p>`;
+}
+/* ---------- NFL sharp test (private: shown only in the Mac app, never on the public site) ---------- */
+async function loadNfl() {
+  try { state.nfl = await (await fetch("/api/nfl")).json(); } catch (e) { state.nfl = { edges: [], clv: [], source: "none" }; }
+  if (state.tab === "nfltest") render();
+}
+function viewNfl() {
+  const d = state.nfl;
+  const lock = `<p class="note"><b>Private.</b> Only you can see this tab. It is not on the public site, nothing here posts to Discord, and it does not touch the college picks.</p>`;
+  if (!d) return hero("Private test", "NFL sharp test", "Loading…", "") + lock;
+  const now = Date.now();
+  const edges = (d.edges || []).filter(e => { const t = okd(e.date); return t && t.getTime() > now; }).sort((a, b) => b.edge - a.edge);
+  const clv = d.clv || [], n = clv.length;
+  const beat = n ? clv.filter(r => r.beat === true || r.beat === "True").length / n : NaN, avg = n ? clv.reduce((s, r) => s + (r.clv || 0), 0) / n : NaN;
+  const MK = { h2h: "Winner", spreads: "Spread", totals: "Total" };
+  const by = {}; clv.forEach(r => { (by[r.market] = by[r.market] || []).push(r); });
+  const u = d.usage || {};
+  const board = cell(edges.length, "edges now") + cell(n, "checked vs close") + cell(n ? pct(beat, 0) : "–", "beat the close");
+  let h = hero("Private test", "NFL sharp test", "A practice run of price edges on NFL games, compared with the sharpest book. We watch it for a few weeks before deciding anything.", board);
+  h += lock;
+  h += `<div class="panel"><h3>Run it</h3><p class="note">Runs on GitHub (a few minutes). Picks finds edges and costs 6 credits. Closing prices costs 3 and saves the price near kickoff. It also runs by itself Thursday, Saturday, Sunday and Monday.</p>
+    <div class="row"><button class="btn" data-nfl="picks">Find edges now (6 credits)</button> <button class="btn" data-nfl="close">Save closing prices (3)</button> <button class="btn" data-nfl="refresh">Refresh this page</button></div>
+    <p class="small muted" id="nflmsg">Data from ${esc(d.source === "cloud" ? "the cloud" : d.source === "this Mac" ? "this Mac" : "nowhere yet")}.${u.used != null ? ` Credits used by the NFL test this month: ${Math.round(u.used)}.` : ""}</p></div>`;
+  h += `<section><h2>Edges right now</h2><p class="note">An exchange price that beats Pinnacle's no-fee price on the same line by 2% to 10% after fees. Kalshi's real fee formula is used for Kalshi, 1% for the others. Small venues can have thin limits, and big underdog prices are where fake edges hide, so none of these are bets yet.</p>`;
+  h += edges.length ? `<div class="box"><table class="stack"><thead><tr><th>Kickoff</th><th>Game</th><th>Pick</th><th>Venue</th><th class="n">Price</th><th class="n">Edge</th><th>Tier</th><th class="n">Stake</th></tr></thead><tbody>` + edges.map(e => `<tr><td class="full">${esc(kick(e.date))}</td><td data-label="Game">${esc(e.away)} at ${esc(e.home)}</td><td data-label="Pick">${esc(e.pick)}</td><td data-label="Venue">${esc(e.venue)}</td><td class="n" data-label="Price">${e.price > 0 ? "+" : ""}${Math.round(e.price)}</td><td class="n pos" data-label="Edge">${spct(e.edge)}</td><td data-label="Tier">${pill(e.tier)}</td><td class="n" data-label="Stake">${Number(e.stake_u).toFixed(1)}u</td></tr>`).join("") + `</tbody></table></div>`
+    : `<div class="empty">No edges at the last run. That is normal: edges are rare, and exchanges post many NFL lines late in the week.</div>`;
+  h += `</section><section><h2>Did we beat the closing price?</h2><p class="note">The price we saw first versus Pinnacle's last price before kickoff. Beating it more often than not is the best early sign an edge is real. It needs about 30 checked edges before it means much.${d.log ? ` Edges logged so far: ${d.log}.` : ""}</p>`;
+  h += n ? `<div class="tiles"><div class="tile"><b>${n}</b><span>edges checked${n < 30 ? " (too few yet)" : ""}</span></div><div class="tile"><b>${pct(beat, 0)}</b><span>beat the close</span></div><div class="tile"><b class="${avg > 0 ? "pos" : "neg"}">${spct(avg)}</b><span>avg value vs the close</span></div></div>
+    <div class="box"><table class="stack"><thead><tr><th>Bet type</th><th class="n">Edges</th><th class="n">Beat the close</th><th class="n">Avg value</th></tr></thead><tbody>` + Object.keys(by).map(k => { const r = by[k]; const b = r.filter(x => x.beat === true || x.beat === "True").length / r.length, a = r.reduce((s, x) => s + (x.clv || 0), 0) / r.length;
+      return `<tr><td class="full">${esc(MK[k] || k)}</td><td class="n" data-label="Edges">${r.length}</td><td class="n" data-label="Beat the close">${pct(b, 0)}</td><td class="n ${a > 0 ? "pos" : "neg"}" data-label="Avg value">${spct(a)}</td></tr>`; }).join("") + `</tbody></table></div>`
+    : `<div class="empty">Appears after games with a logged edge and a saved closing price have kicked off.</div>`;
+  return h + `</section>`;
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-nfl]"); if (!b) return;
+  if (b.dataset.nfl === "refresh") { await loadNfl(); return; }
+  const msg = $("#nflmsg"); b.disabled = true; msg.className = "small muted"; msg.textContent = "Starting…";
+  const res = await api("/api/nfl/run", { mode: b.dataset.nfl });
+  b.disabled = false; msg.className = "small " + (res.ok ? "" : "err"); msg.textContent = res.message || "The app did not answer. Close the Terminal window running Cheeto Picks, open it again, and retry.";
+});
+
 /* ---------- shell ---------- */
 function render() {
-  const tabs = [["week", "This week"], ["edges", "Price edges"], ["record", "Record"], ["how", "How it works"]].concat(state.local ? [["run", "Run"]] : []);
+  const tabs = [["week", "This week"], ["edges", "Price edges"], ["record", "Record"], ["nfl", "NFL"], ["how", "How it works"]].concat(state.local ? [["nfltest", "NFL test"], ["run", "Run"]] : []);
   $("#tabs").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${n}</button>`).join("");
   $("#bottom").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${icon(k)}<span>${k === "how" ? "How" : n}</span></button>`).join("");
-  const body = state.tab === "run" ? viewRun() : state.tab === "edges" ? viewEdges() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
+  const body = state.tab === "nfltest" && state.local ? viewNfl() : state.tab === "nfl" ? viewNflSoon() : state.tab === "run" ? viewRun() : state.tab === "edges" ? viewEdges() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;gap:22px">${body}</div>`;
   syncThemeBtn();
   const lg = $("#log"); if (lg) lg.scrollTop = lg.scrollHeight;
 }
 function renderResults() { const r = $("#results"); if (r) r.innerHTML = resultsHtml(); }
-function setTab(t) { state.tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) {} render(); window.scrollTo(0, 0); }
+function setTab(t) { state.tab = t; if (t === "nfltest") loadNfl(); try { history.replaceState(null, "", "#" + t); } catch (e) {} render(); window.scrollTo(0, 0); }
 
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-tab]"); if (t) return setTab(t.dataset.tab);
@@ -726,13 +776,13 @@ function parseCSV(txt) {
 
 (async function init() {
   const h = location.hash.replace("#", "");
-  if (["week", "edges", "record", "how", "run"].includes(h)) state.tab = h;
+  if (["week", "edges", "record", "how", "run", "nfl", "nfltest"].includes(h)) state.tab = h;
   try {
     const r = await fetch("/api/status");
     if (r.ok) { const s = await r.json(); if (s && s.local) { state.local = true; state.status = s; state.hasKey = s.has_key; await loadLocal(); } }
   } catch (e) {}
   if (!state.local) {
-    if (state.tab === "run") state.tab = "week";
+    if (state.tab === "run" || state.tab === "nfltest") state.tab = "week";
     let emb = null; try { emb = JSON.parse($("#embedded").textContent); } catch (e) {}
     if (emb && emb.picks) { state.embedded = true; state.picks = emb.picks; state.pickFile = emb.picks_file; state.graded = emb.graded || []; state.edges = emb.edges || []; state.clv = emb.clv || []; }
     else {
@@ -747,5 +797,6 @@ function parseCSV(txt) {
     }
   } else if (state.status.running) poll();
   render();
+  if (state.local && state.tab === "nfltest") loadNfl();
 })();
 </script>
