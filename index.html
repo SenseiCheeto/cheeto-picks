@@ -613,12 +613,17 @@ function viewRun() {
 
 /* ---------- NFL: public "coming soon" page (no picks, no data) ---------- */
 function viewNflSoon() {
+  const stage = (n, t, p, on) => `<div class="step"><h3>${n}. ${t}${on ? " &middot; now" : ""}</h3><p>${p}</p></div>`;
   const card = (t, p) => `<div class="step"><h3>${t}</h3><p>${p}</p></div>`;
-  return hero("Next up", "NFL", "Coming soon. We are testing it quietly first, and nothing goes live until it has earned it.", "") +
-    `<section><h2>What to expect</h2><div class="steps">` +
-    card("Price edges first", "The same idea as the Price edges tab: compare exchange prices with the sharpest book on the exact same line, and flag the ones that beat it.") +
-    card("Tested before shown", "We are running it in private for a few weeks and checking whether it beats the closing price. If it does not, it does not launch.") +
-    card("Same honest labels", "Strong, Lean and No edge, suggested stakes in units, and a Record tab. A second opinion, not a sure thing.") + `</div></section>
+  return hero("Next up", "NFL", "Coming soon. College stays the main show. NFL is warming up quietly and only goes live once it has earned it.", "") +
+    `<section><h2>How it will roll out</h2><div class="steps">` +
+    stage(1, "Quiet practice", "Running in private for a few weeks. Nothing is posted and nobody is asked to bet on it.", true) +
+    stage(2, "Report card", "We check whether its prices beat the closing price. If they do not, it does not launch.", false) +
+    stage(3, "Goes public", "NFL picks go live on this tab, with NFL results in their own separate section below them. The college tabs stay college only.", false) +
+    `</div></section><section><h2>What to expect</h2><div class="steps">` +
+    card("Price edges first", "The same idea as the college Price edges: compare exchange prices with the sharpest book on the exact same line, and flag the ones that beat it.") +
+    card("Same honest labels", "Strong, Lean and No edge, suggested stakes in units, and a record you can check. A second opinion, not a sure thing.") +
+    card("Kept apart from college", "NFL results will never be mixed into the college Record. Each sport keeps its own numbers.") + `</div></section>
     <p class="note">No NFL picks are posted yet, so there is nothing to bet here. We will announce it in Discord when it is ready.</p>`;
 }
 /* ---------- NFL sharp test (private: shown only in the Mac app, never on the public site) ---------- */
@@ -663,7 +668,7 @@ document.addEventListener("click", async e => {
 
 /* ---------- shell ---------- */
 function render() {
-  const tabs = [["week", "This week"], ["edges", "Price edges"], ["record", "Record"], ["nfl", "NFL"], ["how", "How it works"]].concat(state.local ? [["nfltest", "NFL test"], ["run", "Run"]] : []);
+  const tabs = [["week", "This week"], ["edges", "Price edges"], ["nfl", "NFL"], ["record", "Record"], ["how", "How it works"]].concat(state.local ? [["nfltest", "NFL test"], ["run", "Run"]] : []);
   $("#tabs").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${n}</button>`).join("");
   $("#bottom").innerHTML = tabs.map(([k, n]) => `<button role="tab" data-tab="${k}" aria-selected="${state.tab === k}">${icon(k)}<span>${k === "how" ? "How" : n}</span></button>`).join("");
   const body = state.tab === "nfltest" && state.local ? viewNfl() : state.tab === "nfl" ? viewNflSoon() : state.tab === "run" ? viewRun() : state.tab === "edges" ? viewEdges() : state.tab === "record" ? viewRecord() : state.tab === "how" ? viewHow() : viewWeek();
