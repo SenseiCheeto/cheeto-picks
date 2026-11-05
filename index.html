@@ -89,8 +89,8 @@ section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .pill { display: inline-block; font: 600 12px var(--display); letter-spacing: .05em; text-transform: uppercase; padding: 2px 9px; border-radius: 4px; white-space: nowrap; }
 .Strong, .W { background: var(--good-bg); color: var(--good-fg); }
 .Lean { background: var(--lean-bg); color: var(--lean-fg); }
-.NoEdge, .Noline, .P, .pending { background: var(--flat-bg); color: var(--flat-fg); }
-.LongShot, .Generousprice { background: var(--long-bg); color: var(--long-fg); }
+.NoEdge, .Noedge, .Noexchangeprice, .Noline, .P, .pending { background: var(--flat-bg); color: var(--flat-fg); }
+.LongShot, .Longshot, .Generousprice, .Suspectprice { background: var(--long-bg); color: var(--long-fg); }
 .L { background: var(--bad-bg); color: var(--bad-fg); }
 .pos { color: var(--good-fg); font-weight: 600; } .neg { color: var(--bad-fg); font-weight: 600; }
 
@@ -642,12 +642,34 @@ function viewNfl() {
   const MK = { h2h: "Winner", spreads: "Spread", totals: "Total" };
   const by = {}; clv.forEach(r => { (by[r.market] = by[r.market] || []).push(r); });
   const u = d.usage || {};
-  const board = cell(edges.length, "edges now") + cell(n, "checked vs close") + cell(n ? pct(beat, 0) : "–", "beat the close");
+  const MKN = { h2h: "Winner", spreads: "Spread", totals: "Total" };
+  const slate = (d.slate || []).filter(r => { const t = okd(r.date); return t && t.getTime() > now; });
+  const games = {}; slate.forEach(r => { (games[r.event_id] = games[r.event_id] || []).push(r); });
+  const glist = Object.values(games).sort((a, b) => String(a[0].date).localeCompare(String(b[0].date)));
+  const ORDER = { h2h: 0, spreads: 1, totals: 2 };
+  const isE = r => r.edge != null && r.edge >= 0.02 && r.edge <= 0.10 && r.verdict !== "Long shot";
+  const pickOf = (g, m) => { const rs = g.filter(r => r.market === m); if (!rs.length) return null;
+    const e = rs.filter(isE).sort((x, y) => y.edge - x.edge)[0]; return e || rs.sort((x, y) => y.fair_p - x.fair_p)[0]; };
+  const cellN = (g, m, k) => { const r = pickOf(g, m); if (!r) return `<div class="bet dim"><span class="k">${k}</span><span class="v"><span class="muted">No line</span></span></div>`;
+    const rec = isE(r), px = r.price == null ? "no exchange price yet" : (r.price > 0 ? "+" : "") + Math.round(r.price) + " " + esc(r.venue) + " (" + spct(r.edge) + ")";
+    return `<div class="bet ${rec ? "" : "dim"}"><span class="k">${k}</span><span class="v"><b>${esc(r.pick)}</b>${pill(rec ? r.verdict : "No edge")}<span class="sub">Sharp book ${pct(r.fair_p, 0)} · ${px}</span></span></div>`; };
+  const nRec = glist.filter(g => g.some(isE)).length, topE = slate.filter(isE).reduce((m, r) => Math.max(m, r.edge), 0);
+  let allg = `<section><h2>All games</h2><p class="note">What the sharp book (Pinnacle) thinks of each game. For each bet we show the side with the best exchange price if it beats the sharp book's fair price after fees. Otherwise we show the side the sharp book favors, marked No edge. Under each pick: the sharp book's fair chance, then the best exchange price on the same line and its edge. There is no model here, only a price check.</p>`;
+  if (glist.length) {
+    let body = "", seen = {};
+    glist.forEach(g => { const t = g[0], day = dayOf(t.date);
+      if (!seen[day]) { seen[day] = 1; body += `<div class="day"><h3>${esc(day)}</h3></div>`; }
+      body += `<div class="game-row"><div class="head"><span class="when">${esc(kickT(t.date))}</span></div><div class="teams">${esc(t.away)} at ${esc(t.home)}</div>${cellN(g, "spreads", "Spread")}${cellN(g, "totals", "Total")}${cellN(g, "h2h", "Winner")}</div>`; });
+    allg += `<div class="games">${body}</div>`;
+  } else allg += `<div class="empty">Nothing yet. Press "Find edges now" above. The first run fills in every upcoming game.</div>`;
+  allg += `</section>`;
+  const board = cell(glist.length, "games") + cell(nRec, "with an edge") + cell(n ? pct(beat, 0) : "–", "beat the close");
   let h = hero("Private test", "NFL sharp test", "A practice run of price edges on NFL games, compared with the sharpest book. We watch it for a few weeks before deciding anything.", board);
   h += lock;
-  h += `<div class="panel"><h3>Run it</h3><p class="note">Runs on GitHub (a few minutes). Picks finds edges and costs 6 credits. Closing prices costs 3 and saves the price near kickoff. It also runs by itself Thursday, Saturday, Sunday and Monday.</p>
-    <div class="row"><button class="btn" data-nfl="picks">Find edges now (6 credits)</button> <button class="btn" data-nfl="close">Save closing prices (3)</button> <button class="btn" data-nfl="refresh">Refresh this page</button></div>
+  h += `<div class="panel"><h3>Run it</h3><p class="note">Runs on GitHub (a few minutes). Picks finds edges and costs 6 credits. Closing prices costs 3 and saves the price near kickoff. It also runs by itself Thursday, Saturday, Sunday and Monday, plus a free Tuesday 5 PM record update with the college run.</p>
+    <div class="row"><button class="btn" data-nfl="picks">Find edges now (6 credits)</button> <button class="btn" data-nfl="close">Save closing prices (3)</button> <button class="btn" data-nfl="report">Post results to Discord</button> <button class="btn" data-nfl="refresh">Refresh this page</button></div>
     <p class="small muted" id="nflmsg">Data from ${esc(d.source === "cloud" ? "the cloud" : d.source === "this Mac" ? "this Mac" : "nowhere yet")}.${u.used != null ? ` Credits used by the NFL test this month: ${Math.round(u.used)}.` : ""}</p></div>`;
+  h += allg;
   h += `<section><h2>Edges right now</h2><p class="note">An exchange price that beats Pinnacle's no-fee price on the same line by 2% to 10% after fees. Kalshi's real fee formula is used for Kalshi, 1% for the others. Small venues can have thin limits, and big underdog prices are where fake edges hide, so none of these are bets yet.</p>`;
   h += edges.length ? `<div class="box"><table class="stack"><thead><tr><th>Kickoff</th><th>Game</th><th>Pick</th><th>Venue</th><th class="n">Price</th><th class="n">Edge</th><th>Tier</th><th class="n">Stake</th></tr></thead><tbody>` + edges.map(e => `<tr><td class="full">${esc(kick(e.date))}</td><td data-label="Game">${esc(e.away)} at ${esc(e.home)}</td><td data-label="Pick">${esc(e.pick)}</td><td data-label="Venue">${esc(e.venue)}</td><td class="n" data-label="Price">${e.price > 0 ? "+" : ""}${Math.round(e.price)}</td><td class="n pos" data-label="Edge">${spct(e.edge)}</td><td data-label="Tier">${pill(e.tier)}</td><td class="n" data-label="Stake">${Number(e.stake_u).toFixed(1)}u</td></tr>`).join("") + `</tbody></table></div>`
     : `<div class="empty">No edges at the last run. That is normal: edges are rare, and exchanges post many NFL lines late in the week.</div>`;
