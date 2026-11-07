@@ -408,6 +408,8 @@ function resultsHtml() {
         <div class="dumb" role="img" aria-label="Line ${esc(g.la)}, model ${esc(g.lb)}"><div class="track"></div><div class="span" style="left:${pos(lo)}%;width:${(hi - lo) / sp * 100}%"></div>
           <div class="dot line" style="left:${pos(g.a)}%"></div><div class="dot model" style="left:${pos(g.b)}%"></div>
           <div class="lab" style="left:${pos(g.a)}%"><b>Line</b> ${esc(g.la)}</div><div class="lab" style="left:${pos(g.b)}%"><b>Model</b> ${esc(g.lb)}</div></div>
+        <div class="small" style="margin-top:8px"><b>${esc(g.lean)}</b> <span class="muted">at the usual price</span> <b>-110</b> <span class="muted">(the model treats every spread and total as -110)</span></div>
+        ${shopHtml(g)}${g.game[(g.type === "spread" ? "spread" : "total") + "_shop"] ? "" : `<div class="small muted" style="margin-top:6px">Line shopping: no price from your books or exchanges for this game yet.</div>`}
         ${g.big ? `<div class="warn">Model may be missing news (injury?)</div>` : ""}</article>`; }).join("") + `</div>`
       : `<div class="empty">${f.q || f.rec ? "Nothing matches those filters." : "No game has a gap big enough to list."}</div>`;
     h += `</section>`;
@@ -486,6 +488,11 @@ function viewRecord() {
     Object.keys(BET).map(k => ({ name: BET[k], rows: rec.filter(r => r.market === k) })), true);
   h += statTable("No edge picks by bet type", "Not bets. If these win more than break-even, the model may be too cautious.",
     Object.keys(BET).map(k => ({ name: BET[k], rows: trk.filter(r => r.market === k) })));
+  const hasGap = r => r.gap !== null && r.gap !== undefined && r.gap !== "" && !isNaN(Number(r.gap));
+  const gp = withG.filter(hasGap), band = (mk, lo, hi, name) => ({ name: `${mk === "spread" ? "Spread" : "Total"}: ${name}`, rows: gp.filter(r => r.market === mk && Number(r.gap) >= lo && Number(r.gap) < hi) });
+  h += statTable("Disagreements: how the model's side did, by gap size", "The <b>Biggest disagreements</b> on This week, checked afterwards. Gap = how many points the model is away from the betting line. Every game's spread and total counts, as flat 1u bets, whether or not it was a recommended bet. If the model is really onto something, bigger gaps should win more. If bigger gaps win <b>less</b>, the model is usually missing news (an injury, say) and the line is right. Break-even is 52.4%.", [
+    band("spread", 0, 3, "under 3 pts"), band("spread", 3, 6, "3 to 6 pts"), band("spread", 6, 10, "6 to 10 pts"), band("spread", 10, 1e9, "10+ pts"),
+    band("total", 0, 3, "under 3 pts"), band("total", 3, 5, "3 to 5 pts"), band("total", 5, 8, "5 to 8 pts"), band("total", 8, 1e9, "8+ pts")]);
   const ml = withG.filter(r => r.market === "moneyline");
   h += statTable("Winner picks by price", "", [
     { name: "Favorites (minus odds)", rows: ml.filter(r => r.line_or_odds < 0) },
@@ -631,6 +638,116 @@ async function loadNfl() {
   try { state.nfl = await (await fetch("/api/nfl")).json(); } catch (e) { state.nfl = { edges: [], clv: [], source: "none" }; }
   if (state.tab === "nfltest") render();
 }
+function modelSection(d) {
+  const log = d.model || [], b = d.board, now = Date.now();
+  const sl = v => v === 0 ? "PK" : (v > 0 ? "+" : "") + String(Math.round(v * 10) / 10);
+  const spPick = r => r.spread_side === "home" ? `${r.home_name} ${sl(-r.mkt_spread)}` : `${r.away_name} ${sl(r.mkt_spread)}`;
+  const fairLine = r => `${r.home_name} ${sl(-r.fair_spread)}`;
+  const up = log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now; }).sort((x, y) => String(x.kickoff_utc).localeCompare(String(y.kickoff_utc)));
+  const done = log.filter(r => ["win", "loss", "push"].includes(r.spread_result)).sort((x, y) => String(y.kickoff_utc).localeCompare(String(x.kickoff_utc)));
+  const pk = k => { const x = b && b.picks && b.picks[k]; return x && x.n ? `${x.units > 0 ? "+" : ""}${x.units.toFixed(2)}u (${x.win}-${x.loss})` : "–"; };
+  const rec = (k, lab) => { const x = b && b[k] && b[k][lab]; return x ? `${x.win}-${x.loss}${x.pct != null ? " (" + Math.round(x.pct * 100) + "%)" : ""}` : "–"; };
+  let h = `<section><h2>Model tracker <span class="small muted">(practice picks)</span></h2><p class="note">Our NFL model's own fair spread and total next to the market line, saved before kickoff and graded afterwards. It now makes practice picks (Lean from a 2-point gap, Strong from 4, and Suspect from 6 because it is probably missing news), and it retrains on every finished game each run, so it keeps learning. Nobody bets these. We are checking whether it ever knows something the market does not. In a backtest of 3,150 games it did not (about 50% against the spread, and 52.4% is needed to break even), so expect this to hover around coin-flip. Gaps of 2+ points are the ones to watch (shown in bold).</p>`;
+  h += `<div class="tiles" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">` +
+    [[up.length, "games tracked"], [done.length, "games graded"], [rec("spread", "all"), "spread record"], [rec("spread", "gap 2+"), "spread, gap 2+"], [rec("total", "all"), "totals record"], [rec("total", "gap 2+"), "totals, gap 2+"], [pk("spread"), "spread picks, units"], [pk("total"), "total picks, units"], [pk("winner"), "winner picks, units"]]
+      .map(([v, l]) => `<div class="box" style="padding:10px 14px;min-width:120px"><div class="big" style="font-size:20px">${esc(String(v))}</div><div class="small muted">${l}</div></div>`).join("") + `</div>`;
+  if (up.length) {
+    let body = "", seen = {};
+    up.forEach(r => { const day = dayOf(r.kickoff_utc);
+      if (!seen[day]) { seen[day] = 1; body += `<div class="day"><h3>${esc(day)}</h3></div>`; }
+      const big = Math.abs(r.spread_gap) >= 2, bigT = r.total_gap != null && Math.abs(r.total_gap) >= 2;
+      body += `<div class="game-row"><div class="head"><span class="when">${esc(kickT(r.kickoff_utc))}</span></div><div class="teams">${esc(r.away_name)} at ${esc(r.home_name)}</div>
+        <div class="bet ${big ? "" : "dim"}"><span class="k">Spread</span><span class="v"><b>${esc(spPick(r))}</b>${r.sp_tier ? pill(r.sp_tier) : ""}<span class="sub">Model line ${esc(r.home)} ${sl(-r.fair_spread)} vs market ${esc(r.home)} ${sl(-r.mkt_spread)} · gap ${Math.abs(r.spread_gap).toFixed(1)}${r.sp_stake > 0 ? ` · ${Number(r.sp_stake).toFixed(1)}u at -110` : ""}</span></span></div>
+        <div class="bet ${bigT ? "" : "dim"}"><span class="k">Total</span><span class="v">${r.mkt_total == null ? '<span class="muted">No line</span>' : `<b>${r.total_side === "over" ? "Over" : "Under"} ${r.mkt_total}</b>${r.tt_tier ? pill(r.tt_tier) : ""}<span class="sub">Model ${Number(r.fair_total).toFixed(1)} vs market ${r.mkt_total} · gap ${Math.abs(r.total_gap).toFixed(1)}${r.tt_stake > 0 ? ` · ${Number(r.tt_stake).toFixed(1)}u at -110` : ""}</span>`}</span></div>
+        <div class="bet ${r.ml_stake > 0 ? "" : "dim"}"><span class="k">Winner</span><span class="v">${r.ml_side ? `<b>${esc(r.ml_side === "home" ? r.home_name : r.away_name)} ${r.ml_price > 0 ? "+" : ""}${Math.round(r.ml_price)}</b>${pill(r.ml_tier || "No edge")}<span class="sub">Model chance edge ${(r.ml_edge * 100).toFixed(1)}%${r.ml_stake > 0 ? ` · ${Number(r.ml_stake).toFixed(1)}u` : ""}</span>` : '<span class="muted">No moneyline</span>'}</span></div></div>`; });
+    h += `<div class="games">${body}</div>`;
+  } else h += `<div class="empty">No games tracked yet. The model tracker runs with every NFL run, and fills in the games for the next 9 days.</div>`;
+  if (done.length) {
+    h += `<h3 style="margin-top:18px">Graded so far</h3><div class="box"><table class="stack"><thead><tr><th>Game</th><th class="n">Final</th><th>Model's spread side</th><th>Result</th><th>Model's total side</th><th>Result</th></tr></thead><tbody>` +
+      done.slice(0, 25).map(r => `<tr><td class="full">${esc(r.away_name)} at ${esc(r.home_name)}</td><td class="n" data-label="Final">${r.away_score}-${r.home_score}</td><td data-label="Spread side">${esc(spPick(r))}</td><td data-label="Result">${pill(r.spread_result === "win" ? "W" : r.spread_result === "loss" ? "L" : "P")}</td><td data-label="Total side">${r.mkt_total == null ? "–" : (r.total_side === "over" ? "Over " : "Under ") + r.mkt_total}</td><td data-label="Result">${r.total_result ? pill(r.total_result === "win" ? "W" : r.total_result === "loss" ? "L" : "P") : "–"}</td></tr>`).join("") + `</tbody></table></div>`;
+  }
+  return h + `</section>`;
+}
+function nflRecord(d) {
+  const e = d.board && d.board.edges, gr = d.graded || [];
+  const u = v => (v > 0 ? "+" : "") + (Math.round(v * 100) / 100).toFixed(2) + "u";
+  let h = `<section><h2>Record at suggested stakes <span class="small muted">(practice, units)</span></h2><p class="note">Every price edge the sharp tool logged, graded after the game at its suggested stake (1u = 1% of bankroll). This is the same record the college Record tab keeps. It is a practice record: nobody bet these.</p>`;
+  if (!e || !e.n) return h + `<div class="empty">Nothing graded yet. Edges show up here after their games finish.</div></section>`;
+  const roi = x => x.roi == null ? "–" : (x.roi > 0 ? "+" : "") + (x.roi * 100).toFixed(1) + "%";
+  h += `<div class="tiles" style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0">` +
+    [[`${e.win}-${e.loss}${e.push ? "-" + e.push : ""}`, "record"], [u(e.units), "units won"], [roi(e), "return on staked"], [e.n, "edges graded"]]
+      .map(([v, l]) => `<div class="box" style="padding:10px 14px;min-width:120px"><div class="big" style="font-size:20px">${esc(String(v))}</div><div class="small muted">${l}</div></div>`).join("") + `</div>`;
+  const tiers = Object.entries(e.by_tier || {});
+  if (tiers.length) h += `<div class="box"><table class="stack"><thead><tr><th>Tier</th><th class="n">Record</th><th class="n">Units</th><th class="n">Return</th></tr></thead><tbody>` +
+    tiers.map(([t, x]) => `<tr><td>${pill(t)}</td><td class="n" data-label="Record">${x.win}-${x.loss}${x.push ? "-" + x.push : ""}</td><td class="n" data-label="Units">${u(x.units)}</td><td class="n" data-label="Return">${roi(x)}</td></tr>`).join("") + `</tbody></table></div>`;
+  if (gr.length) h += `<h3 style="margin-top:18px">Latest graded edges</h3><div class="box"><table class="stack"><thead><tr><th>Game</th><th>Pick</th><th>Venue</th><th class="n">Price</th><th class="n">Stake</th><th>Result</th><th class="n">Units</th></tr></thead><tbody>` +
+    gr.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 25).map(r => `<tr><td class="full">${esc(r.away)} at ${esc(r.home)}</td><td data-label="Pick">${esc(r.pick)}</td><td data-label="Venue">${esc(r.venue)}</td><td class="n" data-label="Price">${r.price > 0 ? "+" : ""}${Math.round(r.price)}</td><td class="n" data-label="Stake">${Number(r.stake_u).toFixed(1)}u</td><td data-label="Result">${pill(r.result)}</td><td class="n" data-label="Units">${u(r.units)}</td></tr>`).join("") + `</tbody></table></div>`;
+  return h + `</section>`;
+}
+function nflStat(title, note, groups) {
+  const rows = groups.filter(g => g.rows.length);
+  if (!rows.length) return "";
+  const f2 = v => (v > 0 ? "+" : "") + (Math.round(v * 100) / 100).toFixed(2) + "u";
+  return `<h3 style="margin-top:18px">${esc(title)}</h3>${note ? `<p class="note">${note}</p>` : ""}<div class="box"><table class="stack"><thead><tr><th>Group</th><th class="n">Picks</th><th class="n">Record</th><th class="n">Win %</th><th class="n">Units</th><th class="n">ROI</th></tr></thead><tbody>` +
+    rows.map(g => { const w = g.rows.filter(r => r.res === "W").length, l = g.rows.filter(r => r.res === "L").length, p = g.rows.length - w - l;
+      const u = g.rows.reduce((a, r) => a + r.u, 0), st = g.rows.reduce((a, r) => a + r.st, 0), c = u > 0 ? "pos" : u < 0 ? "neg" : "";
+      return `<tr><td class="full">${esc(g.name)}</td><td class="n" data-label="Picks">${g.rows.length}</td><td class="n" data-label="Record">${w}-${l}${p ? "-" + p : ""}</td><td class="n" data-label="Win %">${w + l ? Math.round(w / (w + l) * 100) + "%" : "–"}</td><td class="n ${c}" data-label="Units">${f2(u)}</td><td class="n ${c}" data-label="ROI">${st ? (u / st > 0 ? "+" : "") + (u / st * 100).toFixed(1) + "%" : "–"}</td></tr>`; }).join("") + `</tbody></table></div>`;
+}
+function nflDisagree(d) {
+  const log = d.model || [], now = Date.now(), slate = d.slate || [];
+  const sl = v => v === 0 ? "PK" : (v > 0 ? "+" : "") + String(Math.round(v * 10) / 10);
+  const items = [];
+  log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now; }).forEach(r => {
+    const when = r.kickoff_utc;
+    if (r.spread_gap != null && Math.abs(r.spread_gap) >= 2) items.push({ r, type: "spreads", gap: Math.abs(r.spread_gap), side: r.spread_side,
+      lean: r.spread_side === "home" ? `${r.home_name} ${sl(-r.mkt_spread)}` : `${r.away_name} ${sl(r.mkt_spread)}`,
+      la: `${r.home_name} ${sl(-r.mkt_spread)}`, lb: `${r.home_name} ${sl(-r.fair_spread)}`, a: -r.mkt_spread, b: -r.fair_spread });
+    if (r.total_gap != null && r.mkt_total != null && Math.abs(r.total_gap) >= 2) items.push({ r, type: "totals", gap: Math.abs(r.total_gap), side: r.total_side,
+      lean: `${r.total_side === "over" ? "Over" : "Under"} ${r.mkt_total}`, la: String(r.mkt_total), lb: Number(r.fair_total).toFixed(1), a: r.mkt_total, b: r.fair_total });
+  });
+  items.sort((x, y) => y.gap - x.gap);
+  let h = `<section><h2>Biggest disagreements</h2><p class="note">Where our NFL model and the betting line differ most. A big gap is a reason to look, not a reason to bet. These are the model's practice picks, tracked and graded in the Record section below. Gaps of 6+ points on a spread (8+ on a total) usually mean it is missing news.</p>`;
+  if (!items.length) return h + `<div class="empty">No game has a gap of 2+ points right now.</div></section>`;
+  h += `<div class="cards">` + items.slice(0, 12).map(g => {
+    const r = g.r, lo = Math.min(g.a, g.b), hi = Math.max(g.a, g.b), pad = Math.max((hi - lo) * 0.4, 0.5), s0 = lo - pad, sp = (hi + pad) - s0;
+    const pos = v => ((v - s0) / sp * 100).toFixed(1);
+    const m = slate.filter(x => x.market === g.type && x.side === g.side && x.home === r.home_name && x.away === r.away_name && x.price != null).sort((x, y) => (y.edge || 0) - (x.edge || 0))[0];
+    const shop = m ? `<div class="small" style="margin-top:6px"><b>Best price now:</b> ${esc(m.pick)} <b>${m.price > 0 ? "+" : ""}${Math.round(m.price)}</b> at ${esc(m.venue)}${m.edge != null ? ` <span class="muted">(${spct(m.edge)} vs the sharp book)</span>` : ""}</div>` : `<div class="small muted" style="margin-top:6px">Line shopping: no exchange price for this bet yet.</div>`;
+    return `<article class="card"><div class="top2"><span class="small muted">${esc(kickT(r.kickoff_utc))}</span>${pill(g.gap >= (g.type === "spreads" ? 6 : 8) ? "Suspect price" : "Lean")}</div>
+      <div class="game">${esc(r.away_name)} at ${esc(r.home_name)} · ${g.type === "spreads" ? "Spread" : "Total"}</div>
+      <div class="top2"><div class="big">${esc(g.lean)}</div><div class="gapnum">${g.gap.toFixed(1)}<small>pt gap</small></div></div>
+      <div class="dumb" role="img" aria-label="Line ${esc(g.la)}, model ${esc(g.lb)}"><div class="track"></div><div class="span" style="left:${pos(lo)}%;width:${(hi - lo) / sp * 100}%"></div>
+        <div class="dot line" style="left:${pos(g.a)}%"></div><div class="dot model" style="left:${pos(g.b)}%"></div>
+        <div class="lab" style="left:${pos(g.a)}%"><b>Line</b> ${esc(g.la)}</div><div class="lab" style="left:${pos(g.b)}%"><b>Model</b> ${esc(g.lb)}</div></div>
+      <div class="small" style="margin-top:8px"><b>${esc(g.lean)}</b> <span class="muted">at the usual price</span> <b>-110</b></div>${shop}
+      ${g.gap >= (g.type === "spreads" ? 6 : 8) ? `<div class="warn">Model may be missing news (injury?)</div>` : ""}</article>`; }).join("") + `</div>`;
+  return h + `</section>`;
+}
+function nflRecordTables(d) {
+  const log = (d.model || []), gr = d.graded || [];
+  const R = x => x === "win" ? "W" : x === "loss" ? "L" : "P", U = x => x === "win" ? 100 / 110 : x === "loss" ? -1 : 0;
+  const rows = (mk) => log.filter(r => ["win", "loss", "push"].includes(mk === "spread" ? r.spread_result : r.total_result) && (mk === "spread" ? r.spread_gap : r.total_gap) != null)
+    .map(r => { const x = mk === "spread" ? r.spread_result : r.total_result; return { gap: Math.abs(mk === "spread" ? r.spread_gap : r.total_gap), res: R(x), u: U(x), st: 1 }; });
+  const sp = rows("spread"), tt = rows("total");
+  const band = (arr, lo, hi, name) => ({ name, rows: arr.filter(r => r.gap >= lo && r.gap < hi) });
+  const g2 = gr.map(r => ({ m: r.market, price: Number(r.price), res: r.result, u: Number(r.units), st: Number(r.stake_u) }));
+  let h = `<section><h2>Record, the college way</h2><p class="note">The same tables the college Record tab keeps. Everything here is practice: nobody bet these.</p>`;
+  h += nflStat("Disagreements: how the model's side did, by gap size", "Every tracked game's spread and total, as flat 1u bets at -110, whether or not the gap was big. If the model knows something, bigger gaps should win more. Break-even is 52.4%.", [
+    band(sp, 0, 3, "Spread: under 3 pts"), band(sp, 3, 6, "Spread: 3 to 6 pts"), band(sp, 6, 10, "Spread: 6 to 10 pts"), band(sp, 10, 1e9, "Spread: 10+ pts"),
+    band(tt, 0, 3, "Total: under 3 pts"), band(tt, 3, 5, "Total: 3 to 5 pts"), band(tt, 5, 8, "Total: 5 to 8 pts"), band(tt, 8, 1e9, "Total: 8+ pts")]);
+  const mp = (res, tier, stake, units) => log.filter(r => Number(r[stake]) > 0 && r[res] && r[res] !== "").map(r => ({ tier: r[tier], res: R(r[res]), u: Number(r[units]), st: Number(r[stake]) }));
+  const ps = mp("spread_result", "sp_tier", "sp_stake", "sp_units"), pt = mp("total_result", "tt_tier", "tt_stake", "tt_units"), pw = mp("ml_result", "ml_tier", "ml_stake", "ml_units");
+  const tiers = (nm, a) => [{ name: nm + ": all picks", rows: a }, { name: nm + ": Strong", rows: a.filter(r => r.tier === "Strong") }, { name: nm + ": Lean", rows: a.filter(r => r.tier === "Lean") }];
+  h += nflStat("Model picks by bet type (at suggested stakes)", "The NFL model's own practice picks. Spread and total are at -110, winner picks at the moneyline price. 1u = 1% of bankroll. In the backtest these hovered around break-even, so watch whether Strong beats Lean.", [...tiers("Spread", ps), ...tiers("Total", pt), ...tiers("Winner", pw)]);
+  h += nflStat("Price edges by bet type (at suggested stakes)", "Units use each edge's suggested stake (1u = 1% of bankroll).", [
+    { name: "Spread", rows: g2.filter(r => r.m === "spreads") }, { name: "Total", rows: g2.filter(r => r.m === "totals") }, { name: "Winner", rows: g2.filter(r => r.m === "h2h") }]);
+  const ml = g2.filter(r => r.m === "h2h");
+  h += nflStat("Winner edges by price", "", [
+    { name: "Favorites (minus odds)", rows: ml.filter(r => r.price < 0) }, { name: "Underdogs +100 to +249", rows: ml.filter(r => r.price >= 100 && r.price < 250) },
+    { name: "Underdogs +250 to +399", rows: ml.filter(r => r.price >= 250 && r.price < 400) }]);
+  if (!sp.length && !tt.length && !g2.length && !ps.length && !pw.length) h += `<div class="empty">Nothing graded yet. These fill in as games finish.</div>`;
+  return h + `</section>`;
+}
 function viewNfl() {
   const d = state.nfl;
   const lock = `<p class="note"><b>Private.</b> Only you can see this tab. It is not on the public site, nothing here posts to Discord, and it does not touch the college picks.</p>`;
@@ -670,6 +787,10 @@ function viewNfl() {
     <div class="row"><button class="btn" data-nfl="picks">Find edges now (6 credits)</button> <button class="btn" data-nfl="close">Save closing prices (3)</button> <button class="btn" data-nfl="report">Post results to Discord</button> <button class="btn" data-nfl="refresh">Refresh this page</button></div>
     <p class="small muted" id="nflmsg">Data from ${esc(d.source === "cloud" ? "the cloud" : d.source === "this Mac" ? "this Mac" : "nowhere yet")}.${u.used != null ? ` Credits used by the NFL test this month: ${Math.round(u.used)}.` : ""}</p></div>`;
   h += allg;
+  h += nflDisagree(d);
+  h += nflRecord(d);
+  h += nflRecordTables(d);
+  h += modelSection(d);
   h += `<section><h2>Edges right now</h2><p class="note">An exchange price that beats Pinnacle's no-fee price on the same line by 2% to 10% after fees. Kalshi's real fee formula is used for Kalshi, 1% for the others. Small venues can have thin limits, and big underdog prices are where fake edges hide, so none of these are bets yet.</p>`;
   h += edges.length ? `<div class="box"><table class="stack"><thead><tr><th>Kickoff</th><th>Game</th><th>Pick</th><th>Venue</th><th class="n">Price</th><th class="n">Edge</th><th>Tier</th><th class="n">Stake</th></tr></thead><tbody>` + edges.map(e => `<tr><td class="full">${esc(kick(e.date))}</td><td data-label="Game">${esc(e.away)} at ${esc(e.home)}</td><td data-label="Pick">${esc(e.pick)}</td><td data-label="Venue">${esc(e.venue)}</td><td class="n" data-label="Price">${e.price > 0 ? "+" : ""}${Math.round(e.price)}</td><td class="n pos" data-label="Edge">${spct(e.edge)}</td><td data-label="Tier">${pill(e.tier)}</td><td class="n" data-label="Stake">${Number(e.stake_u).toFixed(1)}u</td></tr>`).join("") + `</tbody></table></div>`
     : `<div class="empty">No edges at the last run. That is normal: edges are rare, and exchanges post many NFL lines late in the week.</div>`;
