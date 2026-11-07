@@ -493,6 +493,11 @@ function viewRecord() {
   h += statTable("Disagreements: how the model's side did, by gap size", "The <b>Biggest disagreements</b> on This week, checked afterwards. Gap = how many points the model is away from the betting line. Every game's spread and total counts, as flat 1u bets, whether or not it was a recommended bet. If the model is really onto something, bigger gaps should win more. If bigger gaps win <b>less</b>, the model is usually missing news (an injury, say) and the line is right. Break-even is 52.4%.", [
     band("spread", 0, 3, "under 3 pts"), band("spread", 3, 6, "3 to 6 pts"), band("spread", 6, 10, "6 to 10 pts"), band("spread", 10, 1e9, "10+ pts"),
     band("total", 0, 3, "under 3 pts"), band("total", 3, 5, "3 to 5 pts"), band("total", 5, 8, "5 to 8 pts"), band("total", 8, 1e9, "8+ pts")]);
+  const shownRows = gp.filter(r => (r.shown === true || r.shown === "True" || r.shown === 1 || r.shown === "1") && (r.market === "spread" || r.market === "total"));
+  const sb = (mk, lo, hi, name) => ({ name: `${mk === "spread" ? "Spread" : "Total"}: ${name}`, rows: shownRows.filter(r => r.market === mk && Number(r.gap) >= lo && Number(r.gap) < hi) });
+  h += statTable("Biggest disagreements list only: how the model's side did", "Only the games that were actually on the <b>Biggest disagreements</b> list that week (the 12 biggest gaps), as flat 1u bets. This is the list as you saw it, tracked on its own. The table above counts every game. Break-even is 52.4%.", [
+    { name: "Everything that was on the list", rows: shownRows }, { name: "Spreads on the list", rows: shownRows.filter(r => r.market === "spread") }, { name: "Totals on the list", rows: shownRows.filter(r => r.market === "total") },
+    sb("spread", 0, 6, "under 6 pts"), sb("spread", 6, 10, "6 to 10 pts"), sb("spread", 10, 1e9, "10+ pts"), sb("total", 0, 5, "under 5 pts"), sb("total", 5, 8, "5 to 8 pts"), sb("total", 8, 1e9, "8+ pts")]);
   const ml = withG.filter(r => r.market === "moneyline");
   h += statTable("Winner picks by price", "", [
     { name: "Favorites (minus odds)", rows: ml.filter(r => r.line_or_odds < 0) },
@@ -730,6 +735,10 @@ function nflRecordTables(d) {
     .map(r => { const x = mk === "spread" ? r.spread_result : r.total_result; return { gap: Math.abs(mk === "spread" ? r.spread_gap : r.total_gap), res: R(x), u: U(x), st: 1 }; });
   const sp = rows("spread"), tt = rows("total");
   const band = (arr, lo, hi, name) => ({ name, rows: arr.filter(r => r.gap >= lo && r.gap < hi) });
+  const T = v => v === true || v === "True" || v === 1;
+  const rowsS = (mk) => log.filter(r => T(mk === "spread" ? r.sp_shown : r.tt_shown) && ["win", "loss", "push"].includes(mk === "spread" ? r.spread_result : r.total_result))
+    .map(r => { const x = mk === "spread" ? r.spread_result : r.total_result; return { gap: Math.abs(mk === "spread" ? r.spread_gap : r.total_gap), res: R(x), u: U(x), st: 1 }; });
+  const shS = rowsS("spread"), shT = rowsS("total");
   const g2 = gr.map(r => ({ m: r.market, price: Number(r.price), res: r.result, u: Number(r.units), st: Number(r.stake_u) }));
   let h = `<section><h2>Record, the college way</h2><p class="note">The same tables the college Record tab keeps. Everything here is practice: nobody bet these.</p>`;
   h += nflStat("Disagreements: how the model's side did, by gap size", "Every tracked game's spread and total, as flat 1u bets at -110, whether or not the gap was big. If the model knows something, bigger gaps should win more. Break-even is 52.4%.", [
@@ -738,6 +747,9 @@ function nflRecordTables(d) {
   const mp = (res, tier, stake, units) => log.filter(r => Number(r[stake]) > 0 && r[res] && r[res] !== "").map(r => ({ tier: r[tier], res: R(r[res]), u: Number(r[units]), st: Number(r[stake]) }));
   const ps = mp("spread_result", "sp_tier", "sp_stake", "sp_units"), pt = mp("total_result", "tt_tier", "tt_stake", "tt_units"), pw = mp("ml_result", "ml_tier", "ml_stake", "ml_units");
   const tiers = (nm, a) => [{ name: nm + ": all picks", rows: a }, { name: nm + ": Strong", rows: a.filter(r => r.tier === "Strong") }, { name: nm + ": Lean", rows: a.filter(r => r.tier === "Lean") }];
+  h += nflStat("Biggest disagreements list only: how the model's side did", "Only the bets that were actually on the <b>Biggest disagreements</b> list (the 12 biggest gaps of 2+ points) before kickoff, as flat 1u bets at -110. This is the list as you saw it, tracked on its own. The table above counts every game.", [
+    { name: "Everything that was on the list", rows: [...shS, ...shT] }, { name: "Spreads on the list", rows: shS }, { name: "Totals on the list", rows: shT },
+    band(shS, 0, 6, "Spread: under 6 pts"), band(shS, 6, 1e9, "Spread: 6+ pts"), band(shT, 0, 5, "Total: under 5 pts"), band(shT, 5, 1e9, "Total: 5+ pts")]);
   h += nflStat("Model picks by bet type (at suggested stakes)", "The NFL model's own practice picks. Spread and total are at -110, winner picks at the moneyline price. 1u = 1% of bankroll. In the backtest these hovered around break-even, so watch whether Strong beats Lean.", [...tiers("Spread", ps), ...tiers("Total", pt), ...tiers("Winner", pw)]);
   h += nflStat("Price edges by bet type (at suggested stakes)", "Units use each edge's suggested stake (1u = 1% of bankroll).", [
     { name: "Spread", rows: g2.filter(r => r.m === "spreads") }, { name: "Total", rows: g2.filter(r => r.m === "totals") }, { name: "Winner", rows: g2.filter(r => r.m === "h2h") }]);
@@ -745,7 +757,7 @@ function nflRecordTables(d) {
   h += nflStat("Winner edges by price", "", [
     { name: "Favorites (minus odds)", rows: ml.filter(r => r.price < 0) }, { name: "Underdogs +100 to +249", rows: ml.filter(r => r.price >= 100 && r.price < 250) },
     { name: "Underdogs +250 to +399", rows: ml.filter(r => r.price >= 250 && r.price < 400) }]);
-  if (!sp.length && !tt.length && !g2.length && !ps.length && !pw.length) h += `<div class="empty">Nothing graded yet. These fill in as games finish.</div>`;
+  if (!sp.length && !tt.length && !g2.length && !ps.length && !pw.length && !shS.length) h += `<div class="empty">Nothing graded yet. These fill in as games finish.</div>`;
   return h + `</section>`;
 }
 function viewNfl() {
