@@ -242,6 +242,13 @@ const dtfMD = new Intl.DateTimeFormat("en-US", { timeZone: ET, month: "short", d
 const okd = s => { const d = parseUTC(s); return d && !isNaN(d) ? d : null; };
 const kick = s => { const d = okd(s); return d ? dtf.format(d) + " ET" : ""; };
 const kickT = s => { const d = okd(s); return d ? dtfTime.format(d) + " ET" : ""; };
+/* The NFL week runs Thursday through Monday night. Next week's lines are posted early, so only games that kick off before the coming Tuesday 6 AM ET count as "this week" (the college tab works the same way: one slate at a time). */
+const nflWeekEnd = () => {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hourCycle: "h23", hour: "numeric" });
+  const t0 = Math.ceil(Date.now() / 3600000) * 3600000;
+  for (let i = 0; i < 24 * 8; i++) { const t = t0 + i * 3600000, p = f.formatToParts(new Date(t)); const wd = p.find(x => x.type === "weekday").value, hr = +p.find(x => x.type === "hour").value; if (wd === "Tue" && hr === 6) return t; }
+  return Date.now() + 7 * 86400000;
+};
 const dayOf = s => { const d = okd(s); return d ? dtfDay.format(d) : "Date to be set"; };
 const decOdds = o => o > 0 ? 1 + o / 100 : 1 + 100 / Math.abs(o);
 function verdict(ev, longShot, against) {
@@ -648,7 +655,7 @@ function modelSection(d) {
   const sl = v => v === 0 ? "PK" : (v > 0 ? "+" : "") + String(Math.round(v * 10) / 10);
   const spPick = r => r.spread_side === "home" ? `${r.home_name} ${sl(-r.mkt_spread)}` : `${r.away_name} ${sl(r.mkt_spread)}`;
   const fairLine = r => `${r.home_name} ${sl(-r.fair_spread)}`;
-  const up = log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now; }).sort((x, y) => String(x.kickoff_utc).localeCompare(String(y.kickoff_utc)));
+  const up = log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now && t.getTime() < nflWeekEnd(); }).sort((x, y) => String(x.kickoff_utc).localeCompare(String(y.kickoff_utc)));
   const done = log.filter(r => ["win", "loss", "push"].includes(r.spread_result)).sort((x, y) => String(y.kickoff_utc).localeCompare(String(x.kickoff_utc)));
   const pk = k => { const x = b && b.picks && b.picks[k]; return x && x.n ? `${x.units > 0 ? "+" : ""}${x.units.toFixed(2)}u (${x.win}-${x.loss})` : "–"; };
   const rec = (k, lab) => { const x = b && b[k] && b[k][lab]; return x ? `${x.win}-${x.loss}${x.pct != null ? " (" + Math.round(x.pct * 100) + "%)" : ""}` : "–"; };
@@ -702,7 +709,7 @@ function nflDisagree(d) {
   const log = d.model || [], now = Date.now(), slate = d.slate || [];
   const sl = v => v === 0 ? "PK" : (v > 0 ? "+" : "") + String(Math.round(v * 10) / 10);
   const items = [];
-  log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now; }).forEach(r => {
+  log.filter(r => { const t = okd(r.kickoff_utc); return t && t.getTime() > now && t.getTime() < nflWeekEnd(); }).forEach(r => {
     const when = r.kickoff_utc;
     if (r.spread_gap != null && Math.abs(r.spread_gap) >= 2) items.push({ r, type: "spreads", gap: Math.abs(r.spread_gap), side: r.spread_side,
       lean: r.spread_side === "home" ? `${r.home_name} ${sl(-r.mkt_spread)}` : `${r.away_name} ${sl(r.mkt_spread)}`,
@@ -764,15 +771,15 @@ function viewNfl() {
   const d = state.nfl;
   const lock = `<p class="note"><b>Private.</b> Only you can see this tab. It is not on the public site, nothing here posts to Discord, and it does not touch the college picks.</p>`;
   if (!d) return hero("Private test", "NFL sharp test", "Loading…", "") + lock;
-  const now = Date.now();
-  const edges = (d.edges || []).filter(e => { const t = okd(e.date); return t && t.getTime() > now; }).sort((a, b) => b.edge - a.edge);
+  const now = Date.now(), wkEnd = nflWeekEnd();
+  const edges = (d.edges || []).filter(e => { const t = okd(e.date); return t && t.getTime() > now && t.getTime() < wkEnd; }).sort((a, b) => b.edge - a.edge);
   const clv = d.clv || [], n = clv.length;
   const beat = n ? clv.filter(r => r.beat === true || r.beat === "True").length / n : NaN, avg = n ? clv.reduce((s, r) => s + (r.clv || 0), 0) / n : NaN;
   const MK = { h2h: "Winner", spreads: "Spread", totals: "Total" };
   const by = {}; clv.forEach(r => { (by[r.market] = by[r.market] || []).push(r); });
   const u = d.usage || {};
   const MKN = { h2h: "Winner", spreads: "Spread", totals: "Total" };
-  const slate = (d.slate || []).filter(r => { const t = okd(r.date); return t && t.getTime() > now; });
+  const slate = (d.slate || []).filter(r => { const t = okd(r.date); return t && t.getTime() > now && t.getTime() < wkEnd; });
   const games = {}; slate.forEach(r => { (games[r.event_id] = games[r.event_id] || []).push(r); });
   const glist = Object.values(games).sort((a, b) => String(a[0].date).localeCompare(String(b[0].date)));
   const ORDER = { h2h: 0, spreads: 1, totals: 2 };
@@ -783,7 +790,7 @@ function viewNfl() {
     const rec = isE(r), px = r.price == null ? "no exchange price yet" : (r.price > 0 ? "+" : "") + Math.round(r.price) + " " + esc(r.venue) + " (" + spct(r.edge) + ")";
     return `<div class="bet ${rec ? "" : "dim"}"><span class="k">${k}</span><span class="v"><b>${esc(r.pick)}</b>${pill(rec ? r.verdict : "No edge")}<span class="sub">Sharp book ${pct(r.fair_p, 0)} · ${px}</span></span></div>`; };
   const nRec = glist.filter(g => g.some(isE)).length, topE = slate.filter(isE).reduce((m, r) => Math.max(m, r.edge), 0);
-  let allg = `<section><h2>All games</h2><p class="note">What the sharp book (Pinnacle) thinks of each game. For each bet we show the side with the best exchange price if it beats the sharp book's fair price after fees. Otherwise we show the side the sharp book favors, marked No edge. Under each pick: the sharp book's fair chance, then the best exchange price on the same line and its edge. There is no model here, only a price check.</p>`;
+  let allg = `<section><h2>All games</h2><p class="note">This NFL week only (through Monday night). Next week's games show up on Tuesday. What the sharp book (Pinnacle) thinks of each game. For each bet we show the side with the best exchange price if it beats the sharp book's fair price after fees. Otherwise we show the side the sharp book favors, marked No edge. Under each pick: the sharp book's fair chance, then the best exchange price on the same line and its edge. There is no model here, only a price check.</p>`;
   if (glist.length) {
     let body = "", seen = {};
     glist.forEach(g => { const t = g[0], day = dayOf(t.date);
