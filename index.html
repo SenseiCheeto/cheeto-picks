@@ -240,6 +240,8 @@ const dtfTime = new Intl.DateTimeFormat("en-US", { timeZone: ET, hour: "numeric"
 const dtfDay = new Intl.DateTimeFormat("en-US", { timeZone: ET, weekday: "long", month: "short", day: "numeric" });
 const dtfMD = new Intl.DateTimeFormat("en-US", { timeZone: ET, month: "short", day: "numeric" });
 const okd = s => { const d = parseUTC(s); return d && !isNaN(d) ? d : null; };
+/* A pick saved at or after its game's kickoff is not a real pregame pick (the exchange prices are live in-game by then), so it is hidden. Games that kick off later in the day stay. */
+const pregame = p => { const k = okd(p.date), m = okd(p.picked_at); return !(k && m && m.getTime() >= k.getTime()); };
 const kick = s => { const d = okd(s); return d ? dtf.format(d) + " ET" : ""; };
 const kickT = s => { const d = okd(s); return d ? dtfTime.format(d) + " ET" : ""; };
 /* The NFL week runs Thursday through Monday night. Next week's lines are posted early, so only games that kick off before the coming Tuesday 6 AM ET count as "this week" (the college tab works the same way: one slate at a time). */
@@ -319,7 +321,7 @@ const cell = (n, l) => `<div class="cell"><b>${n}</b><span>${l}</span></div>`;
 
 /* ---------- This week ---------- */
 function viewWeek() {
-  const P = state.picks;
+  const P = state.picks.filter(pregame);
   if (!P.length) return hero("This week's board", "No picks yet", "", "") + emptyPicks();
   const games = [...P].sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const bets = games.flatMap(betsOf);
@@ -388,7 +390,7 @@ function sharpHtml() {
 }
 function resultsHtml() {
   const f = state.f;
-  const games = [...state.picks].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const games = state.picks.filter(pregame).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   const recs = games.flatMap(betsOf).filter(b => isRec(b.v) && passes(b.game, b.type)).sort((a, b) => b.ev - a.ev);
   const gaps = games.flatMap(gapsOf).filter(g => passes(g.game, g.type) && (!f.rec || isRec(g.v))).sort((a, b) => b.gap - a.gap).slice(0, 12);
   let h = `<section><h2>Recommended bets</h2><p class="note">Only Strong and Lean count. The model was about as accurate as the betting market in backtests, so treat these as a second opinion, not a sure thing. The tick on each bar is the win rate needed to break even.${recs.some(b => b.type === "total") ? " Note: totals are the model's weakest bet." : ""}</p>`;
